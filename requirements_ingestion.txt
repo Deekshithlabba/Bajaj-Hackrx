@@ -1,0 +1,31 @@
+# Document Ingestion Pipeline Dependencies (Person 1) - PRODUCTION READY
+# ✅ Successfully tested on macOS with Python 3.10
+# ✅ All table extraction methods working (PDFPlumber primary, Camelot optional)
+# ✅ Image processing with OpenAI GPT-4o
+# ✅ 802 chunks extracted from test document
+
+# Core document processing
+PyMuPDF==1.23.14  # PDF processing (fitz) - PRIMARY method
+python-docx==1.1.0  # DOCX processing
+pandas==2.1.4  # Data manipulation and table handling
+
+# Table extraction (dual approach for maximum compatibility)
+pdfplumber==0.10.0  # PRIMARY table extraction (pure Python, deployment-ready)
+camelot-py[cv]==0.11.0  # OPTIONAL enhancement (requires Ghostscript)
+opencv-python==4.8.1.78  # Required for camelot-py[cv]
+tabula-py==2.8.2  # Alternative table extraction method
+
+# Image processing  
+Pillow==10.1.0  # Image handling and conversion
+
+# AI and API integration
+openai>=1.12.0  # GPT-4o for image descriptions
+requests==2.31.0  # Document downloading
+
+# Environment and utilities
+python-dotenv==1.0.0  # Environment variable management (.env files)
+pathlib2==2.3.7  # Enhanced path handling
+
+# Development and testing
+pytest==7.4.3  # Testing framework
+pytest-cov==4.1.0  # Coverage reporting

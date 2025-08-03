@@ -1,0 +1,51 @@
+DOCUMENT PROCESSING REPORT
+==================================================
+Total chunks: 802
+Generated at: processed_chunks
+
+CONTENT ANALYSIS:
+- Total pages processed: 25
+- Total content length: 175,992 characters
+- Average chunk size: 219 characters
+
+CONTENT TYPES:
+- text: 265 chunks (33.0%)
+- heading: 453 chunks (56.5%)
+- image: 1 chunks (0.1%)
+- table: 83 chunks (10.3%)
+
+SAMPLE CHUNKS:
+------------------------------
+
+Chunk 1 (text):
+Page: 1
+ID: 38d98829def0
+Content: National Insurance Co. Ltd. 
+Premises No. 18-0374, Plot no. CBD-81, 
+New Town, Kolkata - 700156...
+
+
+Chunk 2 (heading):
+Page: 1
+ID: 545ef792bce6
+Content: 1...
+
+
+Chunk 3 (heading):
+Page: 1
+ID: 089b816f5ff1
+Content: 25...
+
+
+Chunk 4 (text):
+Page: 1
+ID: 6349a0699d8e
+Content: Page of 
+National Parivar Mediclaim Plus Policy 
+UIN: NICHLIP25039V032425...
+
+
+Chunk 5 (heading):
+Page: 1
+ID: 7d201fc7a3e7
+Content: National Insurance Company Limited...

@@ -1,0 +1,19 @@
+# Environment variables for Document Ingestion Pipeline
+# Copy this content to a .env file and fill in your actual values
+
+# OpenAI API Key (required for multimodal processing)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional: Custom directories (will use defaults if not set)
+# TEMP_DIR=./temp_documents
+# OUTPUT_DIR=./processed_chunks
+# CACHE_DIR=./document_cache
+
+# Optional: Processing settings
+# MAX_CHUNK_SIZE=1000
+# CHUNK_OVERLAP=100
+# MAX_FILE_SIZE_MB=50
+
+# Optional: Multimodal settings
+# VISION_MODEL=gpt-4o
+# MAX_VISION_TOKENS=500
