@@ -2,19 +2,32 @@
 
 ## Common Issues and Solutions
 
-### 1. Pandas Compilation Errors
+### 1. Python Version Mismatch
 
-**Problem**: Pandas fails to compile from source on Python 3.13
+**Problem**: Render uses Python 3.13 instead of 3.12
+```
+/opt/render/project/src/.venv/lib/python3.13/
+```
+
+**Solution**: 
+- Use the deployment script (`deploy.sh`) that automatically detects Python version
+- The script will use appropriate requirements based on Python version
+- For Python 3.13: uses `requirements_minimal.txt`
+- For Python 3.12: uses `requirements_render.txt`
+
+### 2. Pandas Compilation Errors
+
+**Problem**: Pandas fails to compile from source
 ```
 error: too few arguments to function '_PyLong_AsByteArray'
 ```
 
 **Solution**: 
-- Use Python 3.12 instead of 3.13
-- Use specific pandas version (2.2.3) that has pre-compiled wheels
-- Use `requirements_render.txt` instead of `requirements.txt`
+- Use pandas 2.1.5 (last stable version in 2.1.x series)
+- Use pre-compiled wheels when possible
+- Use minimal requirements for Python 3.13
 
-### 2. Package Version Not Found
+### 3. Package Version Not Found
 
 **Problem**: pip cannot find specified package version
 ```
@@ -24,9 +37,9 @@ ERROR: No matching distribution found for pandas==2.2.4
 **Solution**:
 - Check available versions: `pip index versions pandas`
 - Use the latest available version in the series
-- For pandas, use 2.2.3 (latest in 2.2.x series)
+- For pandas, use 2.1.5 (stable version)
 
-### 3. Build Timeout Issues
+### 4. Build Timeout Issues
 
 **Problem**: Build takes too long and times out
 
@@ -35,20 +48,30 @@ ERROR: No matching distribution found for pandas==2.2.4
 - Pin specific versions instead of using ranges
 - Upgrade pip, setuptools, and wheel before installing requirements
 
-### 4. Memory Issues During Build
+### 5. Memory Issues During Build
 
 **Problem**: Build fails due to insufficient memory
 
 **Solutions**:
-- Use lighter dependencies
+- Use lighter dependencies (`requirements_minimal.txt`)
 - Consider upgrading to a higher Render plan
 - Use pre-compiled wheels to reduce compilation memory usage
+
+## Deployment Files
+
+### Requirements Files:
+- `requirements_minimal.txt`: Minimal packages for Python 3.13
+- `requirements_render.txt`: Full packages for Python 3.12
+- `requirements.txt`: Default packages
+
+### Deployment Script:
+- `deploy.sh`: Automatically detects Python version and installs appropriate packages
 
 ## Deployment Checklist
 
 ### Before Deploying:
-1. ✅ Use Python 3.12 runtime
-2. ✅ Use `requirements_render.txt` 
+1. ✅ Use Python 3.12 runtime in render.yaml
+2. ✅ Use deployment script (`deploy.sh`)
 3. ✅ Pin all package versions
 4. ✅ Test locally with same Python version
 5. ✅ Ensure all environment variables are set in Render dashboard
@@ -61,8 +84,7 @@ ERROR: No matching distribution found for pandas==2.2.4
 
 ### Build Command:
 ```bash
-pip install --upgrade pip setuptools wheel
-pip install -r requirements_render.txt
+chmod +x deploy.sh && ./deploy.sh
 ```
 
 ### Start Command:
@@ -72,10 +94,11 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 
 ## Alternative Solutions
 
-### If pandas still fails:
-1. Try using `pandas==2.1.5` (last 2.1.x version)
+### If deployment still fails:
+1. Try using `requirements_minimal.txt` directly
 2. Consider removing pandas if not essential
 3. Use alternative data processing libraries
+4. Consider using Docker deployment
 
 ### If build continues to fail:
 1. Check Render logs for specific error messages
@@ -94,4 +117,5 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 If deployment fails:
 1. Revert to previous working commit
 2. Use previous working requirements file
-3. Consider using a different Python runtime version 
+3. Consider using a different Python runtime version
+4. Try the minimal requirements approach 

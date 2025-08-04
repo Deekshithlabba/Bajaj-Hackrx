@@ -1,0 +1,26 @@
+# Minimal requirements for testing deployment
+# Only essential packages to get the app running
+
+# Core FastAPI
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+
+# Basic utilities
+requests==2.31.0
+python-dotenv==1.0.0
+
+# Production server
+gunicorn==21.2.0
+
+# Core dependencies (compatible with Python 3.12/3.13)
+numpy==1.24.4
+pandas==2.1.5
+
+# AI integration
+openai==1.12.0
+tiktoken==0.5.0
+
+# Vector database
+pinecone[grpc]==7.3.0 
