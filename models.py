@@ -16,13 +16,10 @@ class DocumentRequest(BaseModel):
     Request model for /hackrx/run endpoint
     Matches HackRx 6.0 competition specifications
     """
-    documents: List[HttpUrl] = Field(
+    documents: HttpUrl = Field(
         ...,
-        description="List of document URLs to process",
-        example=[
-            "https://example.com/policy.pdf",
-            "https://example.com/claims.docx"
-        ]
+        description="Single document URL to process",
+        example="https://hackrx.blob.core.windows.net/assets/policy.pdf?sv=2023-01-03&st=2025-07-04T09%3A11%3A24Z&se=2027-07-05T09%3A11%3A00Z&sr=b&sp=r&sig=N4a9OU0w0QXO6AOIBiu4bpl7AXvEZogeT%2FjUHNO7HzQ%3D"
     )
     
     questions: List[str] = Field(
@@ -39,9 +36,7 @@ class DocumentRequest(BaseModel):
     @validator('documents')
     def validate_documents(cls, v):
         if not v:
-            raise ValueError('At least one document URL is required')
-        if len(v) > 5:
-            raise ValueError('Maximum 5 documents allowed per request')
+            raise ValueError('Document URL is required')
         return v
     
     @validator('questions')
@@ -58,12 +53,18 @@ class DocumentRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "documents": [
-                    "https://example.com/insurance-policy.pdf"
-                ],
+                "documents": "https://hackrx.blob.core.windows.net/assets/policy.pdf?sv=2023-01-03&st=2025-07-04T09%3A11%3A24Z&se=2027-07-05T09%3A11%3A00Z&sr=b&sp=r&sig=N4a9OU0w0QXO6AOIBiu4bpl7AXvEZogeT%2FjUHNO7HzQ%3D",
                 "questions": [
-                    "What are the premium calculation methods?",
-                    "What medical conditions are excluded from coverage?"
+                    "What is the grace period for premium payment under the National Parivar Mediclaim Plus Policy?",
+                    "What is the waiting period for pre-existing diseases (PED) to be covered?",
+                    "Does this policy cover maternity expenses, and what are the conditions?",
+                    "What is the waiting period for cataract surgery?",
+                    "Are the medical expenses for an organ donor covered under this policy?",
+                    "What is the No Claim Discount (NCD) offered in this policy?",
+                    "Is there a benefit for preventive health check-ups?",
+                    "How does the policy define a 'Hospital'?",
+                    "What is the extent of coverage for AYUSH treatments?",
+                    "Are there any sub-limits on room rent and ICU charges for Plan A?"
                 ]
             }
         }

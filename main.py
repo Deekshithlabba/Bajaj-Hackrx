@@ -188,19 +188,25 @@ async def process_documents(
     openai_api_key: str = Depends(verify_token)
 ) -> DocumentResponse:
     """
-    Main HackRx 6.0 endpoint - Process documents and answer questions
+    Main HackRx 6.0 endpoint - Process single document and answer questions
     
     This endpoint implements the complete document intelligence pipeline:
     1. Document ingestion and processing (Person 1)
     2. Vector database indexing and search (Person 2) 
     3. Two-stage LLM reasoning with citations (Person 3)
     4. RESTful API response formatting (Person 4)
+    
+    Request format:
+    {
+        "documents": "https://example.com/document.pdf",
+        "questions": ["Question 1", "Question 2", ...]
+    }
     """
     
     request_id = str(uuid.uuid4())
     start_time = time.time()
     
-    logger.info(f"🔍 Processing request {request_id}: {len(request.documents)} docs, {len(request.questions)} questions")
+    logger.info(f"🔍 Processing request {request_id}: 1 document, {len(request.questions)} questions")
     logger.info(f"🔑 Using OpenAI API key: {openai_api_key[:10]}...")
     
     try:
@@ -217,7 +223,7 @@ async def process_documents(
             request_llm_pipeline = llm_pipeline  # Use global instance
         
         # Check cache first
-        cache_key = get_cache_key(request.documents, request.questions)
+        cache_key = get_cache_key([str(request.documents)], request.questions)
         cached_response = response_cache.get(cache_key)
         
         if cached_response and is_cache_valid(cached_response):
@@ -227,7 +233,7 @@ async def process_documents(
         # Initialize response structure
         results = []
         processing_stats = {
-            "total_documents": len(request.documents),
+            "total_documents": 1,
             "total_questions": len(request.questions),
             "documents_processed": 0,
             "questions_answered": 0,
@@ -236,63 +242,62 @@ async def process_documents(
             "total_cost": 0.0
         }
         
-        # Process each document
+        # Process the single document
         all_processed_chunks = []
         
-        for doc_url in request.documents:
-            try:
-                logger.info(f"📄 Processing document: {doc_url}")
+        doc_url = request.documents
+        try:
+            logger.info(f"📄 Processing document: {doc_url}")
+            
+            # Check document cache
+            doc_cache_key = f"doc_{hashlib.md5(str(doc_url).encode()).hexdigest()}"
+            cached_chunks = document_cache.get(doc_cache_key)
+            
+            if cached_chunks and is_cache_valid(cached_chunks):
+                logger.info(f"📋 Using cached chunks for document: {doc_url}")
+                chunks = cached_chunks["data"]
+            else:
+                # Process document using Person 1's pipeline with provided API key
+                logger.info(f"🔄 Processing new document: {doc_url}")
+                chunks = request_document_pipeline.process_document_from_url(str(doc_url))
+                optimized_chunks = request_document_pipeline.chunk_document_content(chunks)
                 
-                # Check document cache
-                doc_cache_key = f"doc_{hashlib.md5(str(doc_url).encode()).hexdigest()}"
-                cached_chunks = document_cache.get(doc_cache_key)
-                
-                if cached_chunks and is_cache_valid(cached_chunks):
-                    logger.info(f"📋 Using cached chunks for document: {doc_url}")
-                    chunks = cached_chunks["data"]
-                else:
-                    # Process document using Person 1's pipeline with provided API key
-                    logger.info(f"🔄 Processing new document: {doc_url}")
-                    chunks = request_document_pipeline.process_document_from_url(str(doc_url))
-                    optimized_chunks = request_document_pipeline.chunk_document_content(chunks)
-                    
-                    # Cache the processed chunks
-                    document_cache[doc_cache_key] = {
-                        "data": optimized_chunks,
-                        "timestamp": time.time()
-                    }
-                    chunks = optimized_chunks
-                
-                # Index chunks in vector database using Person 2's pipeline
-                logger.info(f"🔍 Indexing {len(chunks)} chunks in vector database")
-                
-                # Convert chunks to the format expected by vector pipeline
-                chunk_data = []
-                for chunk in chunks:
-                    chunk_dict = {
-                        "content": chunk.content,
-                        "content_type": chunk.content_type,
-                        "metadata": chunk.metadata,
-                        "page_number": chunk.page_number,
-                        "source_url": str(doc_url),
-                        "chunk_id": chunk.chunk_id
-                    }
-                    chunk_data.append(chunk_dict)
-                
-                # Process through vector pipeline
-                vector_records = vector_pipeline.prepare_vector_records(chunk_data)
-                vector_pipeline.upsert_vectors(vector_records, namespace="documents")
-                
-                all_processed_chunks.extend(chunks)
-                processing_stats["documents_processed"] += 1
-                processing_stats["total_chunks_processed"] += len(chunks)
-                
-                logger.info(f"✅ Document processed: {len(chunks)} chunks indexed")
-                
-            except Exception as e:
-                logger.error(f"❌ Failed to process document {doc_url}: {e}")
-                # Continue with other documents
-                continue
+                # Cache the processed chunks
+                document_cache[doc_cache_key] = {
+                    "data": optimized_chunks,
+                    "timestamp": time.time()
+                }
+                chunks = optimized_chunks
+            
+            # Index chunks in vector database using Person 2's pipeline
+            logger.info(f"🔍 Indexing {len(chunks)} chunks in vector database")
+            
+            # Convert chunks to the format expected by vector pipeline
+            chunk_data = []
+            for chunk in chunks:
+                chunk_dict = {
+                    "content": chunk.content,
+                    "content_type": chunk.content_type,
+                    "metadata": chunk.metadata,
+                    "page_number": chunk.page_number,
+                    "source_url": str(doc_url),
+                    "chunk_id": chunk.chunk_id
+                }
+                chunk_data.append(chunk_dict)
+            
+            # Process through vector pipeline
+            vector_records = vector_pipeline.prepare_vector_records(chunk_data)
+            vector_pipeline.upsert_vectors(vector_records, namespace="documents")
+            
+            all_processed_chunks.extend(chunks)
+            processing_stats["documents_processed"] += 1
+            processing_stats["total_chunks_processed"] += len(chunks)
+            
+            logger.info(f"✅ Document processed: {len(chunks)} chunks indexed")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to process document {doc_url}: {e}")
+            # For single document, we can't continue, so we'll process questions with empty chunks
         
         # Process each question using Person 3's LLM pipeline
         for question in request.questions:
