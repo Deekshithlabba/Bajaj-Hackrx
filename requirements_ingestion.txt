@@ -19,13 +19,24 @@ tabula-py==2.8.2  # Alternative table extraction method
 Pillow==10.1.0  # Image handling and conversion
 
 # AI and API integration
-openai>=1.12.0  # GPT-4o for image descriptions
+openai>=1.12.0
+tiktoken>=0.5.0  # GPT-4o for image descriptions
 requests==2.31.0  # Document downloading
 
 # Environment and utilities
 python-dotenv==1.0.0  # Environment variable management (.env files)
 pathlib2==2.3.7  # Enhanced path handling
 
+# FastAPI and backend dependencies (Person 4)
+fastapi>=0.104.0  # High-performance web framework
+uvicorn[standard]>=0.24.0  # ASGI server
+pydantic>=2.5.0  # Data validation
+python-multipart>=0.0.6  # Form data handling
+
 # Development and testing
 pytest==7.4.3  # Testing framework
 pytest-cov==4.1.0  # Coverage reporting
+
+# Step 2: Vector Database Dependencies (Person 2)
+pinecone[grpc]>=7.3.0  # Pinecone vector database with gRPC for performance
+numpy>=1.21.0  # Required for vector operations

@@ -13,6 +13,7 @@ class IngestionConfig:
     def __init__(self):
         # API Keys
         self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+        self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
         
         # Directory settings
         self.TEMP_DIR = Path("./temp_documents")
@@ -50,12 +51,27 @@ class IngestionConfig:
         # Full functionality enabled
         self.full_extraction = True
         
+        # Step 2: Vector Database Settings (Pinecone)
+        # Auto-generate unique index name using UUID if not specified
+        import uuid
+        default_index_name = f"hackrx-docs-{uuid.uuid4().hex[:8]}"
+        self.PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", default_index_name)
+        self.PINECONE_CLOUD = os.getenv("PINECONE_CLOUD", "aws")
+        self.PINECONE_REGION = os.getenv("PINECONE_REGION", "us-east-1")
+        self.EMBEDDING_MODEL = "text-embedding-3-small"  # Cost-effective OpenAI model
+        self.EMBEDDING_DIMENSION = 1536  # Dimension for text-embedding-3-small
+        self.VECTOR_METRIC = "cosine"  # Recommended for text embeddings
+        self.BATCH_SIZE = 100  # Batch size for vector operations
+        
     def validate_config(self) -> Dict[str, Any]:
         """Validate configuration and return status"""
         issues = []
         
         if not self.OPENAI_API_KEY:
             issues.append("OPENAI_API_KEY environment variable not set")
+        
+        if not self.PINECONE_API_KEY:
+            issues.append("PINECONE_API_KEY environment variable not set")
         
         # Check if required directories are writable
         for dir_name, directory in [
@@ -81,7 +97,10 @@ class IngestionConfig:
                 "max_chunk_size": self.MAX_CHUNK_SIZE,
                 "chunk_overlap": self.CHUNK_OVERLAP,
                 "supported_formats": list(self.SUPPORTED_FORMATS),
-                "has_openai_key": bool(self.OPENAI_API_KEY)
+                "has_openai_key": bool(self.OPENAI_API_KEY),
+                "has_pinecone_key": bool(self.PINECONE_API_KEY),
+                "pinecone_index_name": self.PINECONE_INDEX_NAME,
+                "embedding_model": self.EMBEDDING_MODEL
             }
         }
     

@@ -4,6 +4,9 @@
 # OpenAI API Key (required for multimodal processing)
 OPENAI_API_KEY=your_openai_api_key_here
 
+# Step 2: Pinecone API Key (required for vector database)
+PINECONE_API_KEY=your_pinecone_api_key_here
+
 # Optional: Custom directories (will use defaults if not set)
 # TEMP_DIR=./temp_documents
 # OUTPUT_DIR=./processed_chunks
@@ -17,3 +20,8 @@ OPENAI_API_KEY=your_openai_api_key_here
 # Optional: Multimodal settings
 # VISION_MODEL=gpt-4o
 # MAX_VISION_TOKENS=500
+
+# Step 2: Vector Database Configuration (Optional)
+# PINECONE_INDEX_NAME=hackrx-document-search
+# PINECONE_CLOUD=aws
+# PINECONE_REGION=us-east-1
