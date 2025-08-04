@@ -1,35 +1,45 @@
 # Production Requirements for HackRx 6.0 Document Intelligence System
-# Optimized for Render deployment with Python 3.12
+<<<<<<< HEAD
+# Optimized for Render deployment with Python 3.11
+=======
+# Optimized for Render deployment
+>>>>>>> parent of 07c1f5a (deployment)
 
 # Core FastAPI and web framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-python-multipart==0.0.6
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
 
 # Document processing
-PyMuPDF==1.24.0  # Updated version with Python 3.13 wheels
+<<<<<<< HEAD
+PyMuPDF==1.23.14  # Stable version for Python 3.11
 python-docx==1.1.0
-pandas==2.2.3  # Specific version compatible with Python 3.12
+pandas==2.1.4  # Compatible with Python 3.11
+=======
+PyMuPDF>=1.24.0  # Updated version with Python 3.13 wheels
+python-docx==1.1.0
+pandas==2.1.4
+>>>>>>> parent of 07c1f5a (deployment)
 pdfplumber==0.10.0
 Pillow==10.1.0
 
 # AI and API integration
-openai==1.12.0
-tiktoken==0.5.0
+openai>=1.12.0
+tiktoken>=0.5.0
 
 # Vector database
+<<<<<<< HEAD
 pinecone[grpc]==7.3.0
-numpy==1.26.4  # Specific version for Python 3.12 compatibility
+numpy==1.24.3  # Compatible with Python 3.11
+=======
+pinecone[grpc]>=7.3.0
+numpy>=1.21.0
+>>>>>>> parent of 07c1f5a (deployment)
 
 # HTTP requests and utilities
 requests==2.31.0
 python-dotenv==1.0.0
 
-# Optional table extraction (may not work on all deployment platforms)
-# camelot-py[cv]==0.11.0  # Commented out for deployment compatibility
-# opencv-python==4.8.1.78  # Commented out for deployment compatibility
-# tabula-py==2.8.2  # Commented out for deployment compatibility
-
 # Production optimizations
-gunicorn==21.2.0  # Production WSGI server alternative
+gunicorn>=21.2.0  # Production WSGI server alternative

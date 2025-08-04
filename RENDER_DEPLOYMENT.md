@@ -15,9 +15,12 @@
 
 Ensure these files are in your repository root:
 - ✅ `requirements.txt` (production dependencies)
+- ✅ `requirements_minimal.txt` (fallback dependencies)
+- ✅ `deploy.sh` (deployment script)
 - ✅ `render.yaml` (deployment configuration)
 - ✅ `main.py` (FastAPI application)
 - ✅ All Python modules (.py files)
+- ✅ `.gitignore` (exclude sensitive files)
 
 ### 2. **Deploy to Render**
 
@@ -36,8 +39,8 @@ Ensure these files are in your repository root:
 
 ```
 Name: hackrx-document-intelligence
-Runtime: Python 3
-Build Command: pip install -r requirements.txt
+Runtime: Python 3.11
+Build Command: chmod +x deploy.sh && ./deploy.sh
 Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
@@ -125,9 +128,10 @@ Render automatically deploys on git push to the connected branch.
 ### Common Issues
 
 1. **Build Fails**:
-   - Check Python version compatibility
-   - Verify all dependencies in `requirements.txt`
+   - Check Python version compatibility (using Python 3.11)
+   - Verify all dependencies in `requirements.txt` and `requirements_minimal.txt`
    - Check build logs in Render dashboard
+   - The deployment script will automatically fallback to minimal requirements if needed
 
 2. **API Key Errors**:
    - Verify environment variables are set correctly
