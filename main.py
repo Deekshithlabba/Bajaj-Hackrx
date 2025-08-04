@@ -103,16 +103,21 @@ app.add_middleware(
 
 # Authentication dependency
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """Verify Bearer token authentication"""
+    """Verify Bearer token - now used as OpenAI API key"""
     token = credentials.credentials
     
-    # Simple token validation (production would check against database/JWT)
+    # Basic token validation - assuming it's an OpenAI API key
     if not token or len(token) < 10:
         raise HTTPException(
             status_code=401,
-            detail="Invalid authentication token",
+            detail="Invalid authentication token (expected OpenAI API key)",
             headers={"WWW-Authenticate": "Bearer"}
         )
+    
+    # Additional validation for OpenAI API key format
+    if not token.startswith(('sk-', 'sk-proj-')):
+        logger.warning(f"Bearer token doesn't look like OpenAI API key: {token[:10]}...")
+        # Still allow it - will fallback to env key if this fails
     
     return token
 
@@ -180,7 +185,7 @@ async def health_check():
 async def process_documents(
     request: DocumentRequest,
     background_tasks: BackgroundTasks,
-    token: str = Depends(verify_token)
+    openai_api_key: str = Depends(verify_token)
 ) -> DocumentResponse:
     """
     Main HackRx 6.0 endpoint - Process documents and answer questions
@@ -196,16 +201,27 @@ async def process_documents(
     start_time = time.time()
     
     logger.info(f"🔍 Processing request {request_id}: {len(request.documents)} docs, {len(request.questions)} questions")
+    logger.info(f"🔑 Using OpenAI API key: {openai_api_key[:10]}...")
     
     try:
+        # Initialize pipelines with the provided API key (bearer token)
+        # Create new instances per request to use the specific API key
+        try:
+            request_document_pipeline = DocumentIngestionPipeline(openai_api_key=openai_api_key)
+            request_llm_pipeline = TwoStageLLMPipeline(openai_api_key=openai_api_key)
+            logger.info("✅ Pipelines initialized with provided API key")
+        except Exception as api_key_error:
+            logger.warning(f"⚠️ Failed to initialize with provided API key: {api_key_error}")
+            logger.info("🔄 Falling back to environment API key")
+            request_document_pipeline = document_pipeline  # Use global instance
+            request_llm_pipeline = llm_pipeline  # Use global instance
+        
         # Check cache first
         cache_key = get_cache_key(request.documents, request.questions)
         cached_response = response_cache.get(cache_key)
         
         if cached_response and is_cache_valid(cached_response):
             logger.info(f"📋 Cache hit for request {request_id}")
-            cached_response["data"]["request_id"] = request_id
-            cached_response["data"]["cached"] = True
             return DocumentResponse(**cached_response["data"])
         
         # Initialize response structure
@@ -235,10 +251,10 @@ async def process_documents(
                     logger.info(f"📋 Using cached chunks for document: {doc_url}")
                     chunks = cached_chunks["data"]
                 else:
-                    # Process document using Person 1's pipeline
+                    # Process document using Person 1's pipeline with provided API key
                     logger.info(f"🔄 Processing new document: {doc_url}")
-                    chunks = document_pipeline.process_document_from_url(str(doc_url))
-                    optimized_chunks = document_pipeline.chunk_document_content(chunks)
+                    chunks = request_document_pipeline.process_document_from_url(str(doc_url))
+                    optimized_chunks = request_document_pipeline.chunk_document_content(chunks)
                     
                     # Cache the processed chunks
                     document_cache[doc_cache_key] = {
@@ -283,8 +299,8 @@ async def process_documents(
             try:
                 logger.info(f"🤔 Processing question: {question}")
                 
-                # Use Person 3's complete LLM pipeline
-                llm_result = llm_pipeline.process_query(question)
+                # Use Person 3's complete LLM pipeline with provided API key
+                llm_result = request_llm_pipeline.process_query(question)
                 
                 # Update processing stats
                 processing_stats["questions_answered"] += 1
@@ -319,25 +335,14 @@ async def process_documents(
                     "processing_time": 0.0
                 })
         
-        # Build final response
+        # Build final response - simple answers array format
         total_processing_time = time.time() - start_time
         
+        # Extract just the answers from results
+        answers = [result["answer"] for result in results]
+        
         response_data = {
-            "request_id": request_id,
-            "results": results,
-            "processing_stats": processing_stats,
-            "performance": {
-                "total_processing_time": total_processing_time,
-                "average_time_per_question": total_processing_time / max(1, len(request.questions)),
-                "total_tokens_used": processing_stats["total_tokens_used"],
-                "estimated_total_cost": processing_stats["total_cost"]
-            },
-            "metadata": {
-                "api_version": "1.0.0",
-                "pipeline_version": "person_1_2_3_complete",
-                "timestamp": datetime.now().isoformat(),
-                "cached": False
-            }
+            "answers": answers
         }
         
         # Cache the response

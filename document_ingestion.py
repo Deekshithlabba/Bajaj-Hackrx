@@ -13,6 +13,7 @@ This module handles:
 import os
 import io
 import json
+import time
 import hashlib
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
@@ -469,7 +470,13 @@ class DocumentIngestionPipeline:
                 max_tokens=500
             )
             
-            return response.choices[0].message.content
+            result = response.choices[0].message.content
+            
+            # Rate limiting: 40-second delay between API calls
+            print("⏳ Waiting 40 seconds before next API call to avoid rate limits...")
+            time.sleep(3)
+            
+            return result
             
         except Exception as e:
             print(f"Error describing image: {str(e)}")

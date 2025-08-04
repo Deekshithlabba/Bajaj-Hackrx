@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: hackrx-document-intelligence
+    runtime: python3
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: starter  # Can be upgraded to standard/pro as needed
+    region: oregon  # Closest to your users
+    branch: main  # Deploy from main branch
+    
+    # Environment variables (configure these in Render dashboard)
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: PINECONE_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: PINECONE_CLOUD
+        value: aws
+      - key: PINECONE_REGION
+        value: us-east-1
+      - key: MAX_CHUNK_SIZE
+        value: "1000"
+      - key: CHUNK_OVERLAP
+        value: "100"
+      - key: MAX_FILE_SIZE_MB
+        value: "50"
+      - key: VISION_MODEL
+        value: gpt-4o
+      - key: MAX_VISION_TOKENS
+        value: "500"
+    
+    # Health check configuration
+    healthCheckPath: /health
+    
+    # Resource limits (adjust based on your plan)
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
+
+# Optional: Redis for caching (uncomment if needed)
+# - type: redis
+#   name: hackrx-cache
+#   plan: starter
+#   region: oregon

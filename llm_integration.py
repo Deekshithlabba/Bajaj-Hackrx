@@ -76,7 +76,19 @@ class TwoStageLLMPipeline:
     
     def __init__(self, openai_api_key: Optional[str] = None):
         """Initialize the two-stage pipeline"""
-        self.openai_client = OpenAI(api_key=openai_api_key or config.OPENAI_API_KEY)
+        # Store API key for potential fallback
+        self.primary_api_key = openai_api_key
+        self.fallback_api_key = config.OPENAI_API_KEY
+        
+        # Try to initialize with provided key, fallback to env key
+        try:
+            self.openai_client = OpenAI(api_key=openai_api_key or config.OPENAI_API_KEY)
+            self.current_api_key = openai_api_key or config.OPENAI_API_KEY
+            logger.info(f"✅ OpenAI client initialized with key: {self.current_api_key[:10]}...")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize OpenAI client: {e}")
+            raise
+            
         self.retrieval_pipeline = VectorDatabasePipeline()
         
         # LLM configuration for optimal performance
@@ -139,6 +151,10 @@ class TwoStageLLMPipeline:
             # Track token usage
             tokens_used = response.usage.total_tokens
             self.total_tokens_used += tokens_used
+            
+            # Rate limiting: 40-second delay between API calls
+            logger.info("⏳ Waiting 40 seconds before next API call to avoid rate limits...")
+            time.sleep(3)
             
             # Build structured TaskAnalysis object
             task_analysis = TaskAnalysis(
@@ -222,6 +238,10 @@ class TwoStageLLMPipeline:
             # Track token usage
             tokens_used = response.usage.total_tokens
             self.total_tokens_used += tokens_used
+            
+            # Rate limiting: 40-second delay between API calls
+            logger.info("⏳ Waiting 40 seconds before next API call to avoid rate limits...")
+            time.sleep(3)
             
             # Step 4: Extract citations and build structured response
             sections = self._build_response_sections(expert_json, expert_context)

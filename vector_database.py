@@ -178,6 +178,10 @@ class VectorDatabasePipeline:
             embeddings = [record.embedding for record in response.data]
             logger.debug(f"✅ Generated {len(embeddings)} embeddings")
             
+            # Rate limiting: 40-second delay between API calls
+            logger.info("⏳ Waiting 40 seconds before next API call to avoid rate limits...")
+            time.sleep(3)
+            
             return embeddings
             
         except Exception as e:

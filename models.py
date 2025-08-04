@@ -223,50 +223,18 @@ class ResponseMetadata(BaseModel):
 class DocumentResponse(BaseModel):
     """
     Response model for /hackrx/run endpoint
-    Complete structured response with all results
+    Simple array of answers format
     """
-    request_id: str = Field(..., description="Unique identifier for this request")
-    results: List[QuestionResult] = Field(..., description="Results for each question")
-    processing_stats: ProcessingStats = Field(..., description="Processing statistics")
-    performance: PerformanceMetrics = Field(..., description="Performance metrics")
-    metadata: ResponseMetadata = Field(..., description="Response metadata")
+    answers: List[str] = Field(..., description="Array of answers corresponding to the input questions")
 
     class Config:
         schema_extra = {
             "example": {
-                "request_id": "req_abc123def456",
-                "results": [
-                    {
-                        "question": "What are the premium calculation methods?",
-                        "answer": "Based on the policy documents...",
-                        "confidence": 0.92,
-                        "citations": [],
-                        "sections": [],
-                        "methodology": "two_stage_hybrid_rag",
-                        "processing_time": 12.5
-                    }
-                ],
-                "processing_stats": {
-                    "total_documents": 1,
-                    "total_questions": 1,
-                    "documents_processed": 1,
-                    "questions_answered": 1,
-                    "total_chunks_processed": 802,
-                    "total_tokens_used": 4200,
-                    "total_cost": 0.078
-                },
-                "performance": {
-                    "total_processing_time": 45.2,
-                    "average_time_per_question": 15.1,
-                    "total_tokens_used": 4200,
-                    "estimated_total_cost": 0.078
-                },
-                "metadata": {
-                    "api_version": "1.0.0",
-                    "pipeline_version": "person_1_2_3_complete",
-                    "timestamp": "2024-01-15T10:30:00.123456",
-                    "cached": False
-                }
+                "answers": [
+                    "A grace period of thirty days is provided for premium payment after the due date to renew or continue the policy without losing continuity benefits.",
+                    "There is a waiting period of thirty-six (36) months of continuous coverage from the first policy inception for pre-existing diseases and their direct complications to be covered.",
+                    "Yes, the policy covers maternity expenses, including childbirth and lawful medical termination of pregnancy."
+                ]
             }
         }
 
