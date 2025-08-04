@@ -1,32 +1,28 @@
 #!/bin/bash
-# Deployment script for HackRx 6.0 Document Intelligence System
-# Optimized for Render deployment
 
-set -e  # Exit on any error
+# Deployment script for HackRx Document Intelligence System
+# Handles different Python versions and package compatibility
 
-echo "🚀 Starting HackRx 6.0 deployment..."
+echo "Starting deployment..."
 
-# Upgrade pip to latest version
-echo "📦 Upgrading pip..."
-python -m pip install --upgrade pip
+# Upgrade pip and build tools
+echo "Upgrading pip, setuptools, and wheel..."
+pip install --upgrade pip setuptools wheel
 
-# Install dependencies with verbose output
-echo "📦 Installing dependencies..."
-if ! pip install -r requirements.txt --verbose; then
-    echo "⚠️ Main requirements failed, trying minimal requirements..."
-    pip install -r requirements_minimal.txt --verbose
+# Check Python version
+PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+echo "Python version: $PYTHON_VERSION"
+
+# Install packages based on Python version
+if [[ "$PYTHON_VERSION" == "3.13" ]]; then
+    echo "Using Python 3.13 compatible packages..."
+    pip install -r requirements_minimal.txt
+elif [[ "$PYTHON_VERSION" == "3.12" ]]; then
+    echo "Using Python 3.12 compatible packages..."
+    pip install -r requirements_render.txt
+else
+    echo "Using default packages..."
+    pip install -r requirements.txt
 fi
 
-# Create necessary directories
-echo "📁 Creating directories..."
-mkdir -p temp_documents
-mkdir -p processed_chunks
-mkdir -p document_cache
-
-# Set permissions
-echo "🔐 Setting permissions..."
-chmod 755 temp_documents
-chmod 755 processed_chunks
-chmod 755 document_cache
-
-echo "✅ Deployment setup complete!" 
+echo "Deployment completed successfully!" 
