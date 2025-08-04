@@ -31,5 +31,5 @@ python-dotenv==1.0.0
 # opencv-python==4.8.1.78  # Commented out for deployment compatibility
 # tabula-py==2.8.2  # Commented out for deployment compatibility
 
-# Production optimizations
-gunicorn>=21.2.0  # Production WSGI server alternative
+# Production optimizations for Render
+# Using uvicorn as ASGI server (already included above)
