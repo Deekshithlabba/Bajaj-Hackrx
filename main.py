@@ -87,7 +87,7 @@ app = FastAPI(
     description="AI-powered document analysis with two-stage reasoning and complete explainability",
     version="1.0.0",
     docs_url="/docs",
-    redmi_url="/redoc",
+    redoc_url="/redoc",
     lifespan=lifespan
 )
 
