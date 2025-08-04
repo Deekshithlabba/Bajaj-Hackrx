@@ -11,10 +11,22 @@ error: too few arguments to function '_PyLong_AsByteArray'
 
 **Solution**: 
 - Use Python 3.12 instead of 3.13
-- Use specific pandas version (2.2.4) that has pre-compiled wheels
+- Use specific pandas version (2.2.3) that has pre-compiled wheels
 - Use `requirements_render.txt` instead of `requirements.txt`
 
-### 2. Build Timeout Issues
+### 2. Package Version Not Found
+
+**Problem**: pip cannot find specified package version
+```
+ERROR: No matching distribution found for pandas==2.2.4
+```
+
+**Solution**:
+- Check available versions: `pip index versions pandas`
+- Use the latest available version in the series
+- For pandas, use 2.2.3 (latest in 2.2.x series)
+
+### 3. Build Timeout Issues
 
 **Problem**: Build takes too long and times out
 
@@ -23,7 +35,7 @@ error: too few arguments to function '_PyLong_AsByteArray'
 - Pin specific versions instead of using ranges
 - Upgrade pip, setuptools, and wheel before installing requirements
 
-### 3. Memory Issues During Build
+### 4. Memory Issues During Build
 
 **Problem**: Build fails due to insufficient memory
 
