@@ -16,10 +16,10 @@ Pillow>=10.2.0
 
 # AI and API integration
 openai>=1.12.0
-tiktoken>=0.5.0
+# tiktoken>=0.5.0  # Commented out - has Rust dependencies that cause build issues
 
-# Vector database
-pinecone[grpc]>=7.3.0
+# Vector database - using standard client to avoid Rust compilation
+pinecone>=4.0.0
 numpy>=1.24.0  # Updated for Python 3.13 compatibility
 
 # HTTP requests and utilities
