@@ -1,7 +1,7 @@
 services:
   - type: web
     name: hackrx-document-intelligence
-    runtime: python3
+    env: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     plan: starter  # Can be upgraded to standard/pro as needed
