@@ -1,8 +1,10 @@
 services:
   - type: web
     name: hackrx-document-intelligence
-    runtime: python3
-    buildCommand: pip install -r requirements.txt
+    runtime: python3.12  # Use Python 3.12 for better compatibility
+    buildCommand: |
+      pip install --upgrade pip setuptools wheel
+      pip install -r requirements_render.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     plan: starter  # Can be upgraded to standard/pro as needed
     region: oregon  # Closest to your users
