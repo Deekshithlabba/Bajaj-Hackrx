@@ -27,7 +27,8 @@ from collections import Counter
 
 import numpy as np
 from openai import OpenAI
-from pinecone import Pinecone, ServerlessSpec
+from pinecone.grpc import PineconeGRPC as Pinecone
+from pinecone import ServerlessSpec
 
 from config import config
 
