@@ -12,7 +12,7 @@ import time
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
-import tiktoken
+# import tiktoken  # Commented out to avoid Rust compilation issues
 
 from openai import OpenAI
 from vector_database import VectorDatabasePipeline
@@ -95,8 +95,9 @@ class TwoStageLLMPipeline:
         self.task_analyzer_model = "gpt-4-1106-preview"  # For complex reasoning
         self.domain_expert_model = "gpt-4-1106-preview"  # For detailed responses
         
-        # Token counting for optimization
-        self.encoding = tiktoken.encoding_for_model("gpt-4")
+        # Token counting for optimization (using fallback estimation instead of tiktoken)
+        self.encoding = None  # Will use _estimate_tokens() for token counting
+        logger.info("ℹ️ Using fallback token counting (tiktoken disabled for deployment)")
         
         # Performance tracking
         self.total_tokens_used = 0
@@ -503,6 +504,11 @@ RESPOND IN THIS EXACT JSON FORMAT:
                 all_citations.append(citation_dict)
         
         return all_citations
+    
+    def _estimate_tokens(self, text: str) -> int:
+        """Simple token estimation fallback (when tiktoken is not available)"""
+        # Rough estimation: ~4 characters per token for English text
+        return len(text) // 4
     
     def _calculate_cost(self, total_tokens: int) -> float:
         """Calculate estimated cost based on GPT-4 pricing"""
