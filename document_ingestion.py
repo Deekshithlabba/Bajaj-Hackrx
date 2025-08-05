@@ -50,8 +50,8 @@ except ImportError:
     partition = None
 
 # For multimodal processing
-import openai
-from openai import OpenAI
+# import openai  # Replaced with Gemini
+import google.generativeai as genai
 
 @dataclass
 class DocumentChunk:
@@ -67,24 +67,26 @@ class DocumentChunk:
 class DocumentIngestionPipeline:
     """Advanced document ingestion pipeline with multimodal capabilities"""
     
-    def __init__(self, openai_api_key: str, temp_dir: str = "./temp_documents"):
+    def __init__(self, gemini_api_key: str = None, temp_dir: str = "./temp_documents"):
         """
         Initialize the ingestion pipeline
         
         Args:
-            openai_api_key: OpenAI API key for multimodal processing
+            gemini_api_key: Gemini API key for multimodal processing
             temp_dir: Directory to store temporary downloaded documents
         """
-        # Initialize OpenAI client with explicit parameters
+        # Initialize Gemini client
         try:
-            self.openai_client = OpenAI(
-                api_key=openai_api_key,
-                timeout=60.0  # Set explicit timeout
-            )
+            self.gemini_api_key = gemini_api_key or config.GEMINI_API_KEY
+            if self.gemini_api_key:
+                genai.configure(api_key=self.gemini_api_key)
+                self.vision_model = genai.GenerativeModel(config.VISION_MODEL)
+            else:
+                print("Warning: No Gemini API key provided. Image processing will be disabled.")
+                self.vision_model = None
         except Exception as e:
-            print(f"Error initializing OpenAI client: {e}")
-            # Fallback initialization
-            self.openai_client = OpenAI(api_key=openai_api_key)
+            print(f"Error initializing Gemini client: {e}")
+            self.vision_model = None
         self.temp_dir = Path(temp_dir)
         self.temp_dir.mkdir(exist_ok=True)
         
@@ -439,44 +441,28 @@ class DocumentIngestionPipeline:
         return chunks
     
     def _describe_image(self, image_data: bytes) -> str:
-        """Generate description of image using GPT-4 Vision"""
+        """Generate description of image using Gemini Vision"""
         # Skip image processing if explicitly disabled
         if hasattr(self, 'skip_image_processing') and self.skip_image_processing:
             return "[Image content - processing skipped]"
         
+        # Skip if no vision model available
+        if not self.vision_model:
+            return "[Image content - Gemini not configured]"
+        
         try:
-            # Encode image to base64
-            base64_image = base64.b64encode(image_data).decode('utf-8')
+            # Convert bytes to PIL Image for Gemini
+            from PIL import Image as PILImage
+            import io
             
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "Describe this image in detail. Focus on any text, charts, diagrams, or important visual information that would be relevant for document analysis. If there's text in the image, transcribe it accurately."
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{base64_image}"
-                                }
-                            }
-                        ]
-                    }
-                ],
-                max_tokens=500
-            )
+            image = PILImage.open(io.BytesIO(image_data))
             
-            result = response.choices[0].message.content
+            prompt = "Describe this image in detail. Focus on any text, charts, diagrams, or important visual information that would be relevant for document analysis. If there's text in the image, transcribe it accurately."
             
-            # Rate limiting: 40-second delay between API calls
-            print("⏳ Waiting 40 seconds before next API call to avoid rate limits...")
-            time.sleep(3)
+            response = self.vision_model.generate_content([prompt, image])
             
-            return result
+            description = response.text
+            return description if description else "[Image description unavailable]"
             
         except Exception as e:
             print(f"Error describing image: {str(e)}")

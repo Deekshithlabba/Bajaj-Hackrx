@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
         # Initialize all pipeline components
         logger.info("📝 Initializing Document Ingestion Pipeline...")
         document_pipeline = DocumentIngestionPipeline(
-            openai_api_key=config.OPENAI_API_KEY
+            gemini_api_key=config.GEMINI_API_KEY
         )
         
         logger.info("🔍 Initializing Vector Database Pipeline...")
@@ -103,20 +103,20 @@ app.add_middleware(
 
 # Authentication dependency
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """Verify Bearer token - now used as OpenAI API key"""
+    """Verify Bearer token - now used as Gemini API key"""
     token = credentials.credentials
     
-    # Basic token validation - assuming it's an OpenAI API key
+    # Basic token validation - assuming it's a Gemini API key
     if not token or len(token) < 10:
         raise HTTPException(
             status_code=401,
-            detail="Invalid authentication token (expected OpenAI API key)",
+            detail="Invalid authentication token (expected Gemini API key)",
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    # Additional validation for OpenAI API key format
-    if not token.startswith(('sk-', 'sk-proj-')):
-        logger.warning(f"Bearer token doesn't look like OpenAI API key: {token[:10]}...")
+    # Additional validation for Gemini API key format
+    if not token.startswith(('AI', 'AIza')):
+        logger.warning(f"Bearer token doesn't look like Gemini API key: {token[:10]}...")
         # Still allow it - will fallback to env key if this fails
     
     return token
@@ -185,7 +185,7 @@ async def health_check():
 async def process_documents(
     request: DocumentRequest,
     background_tasks: BackgroundTasks,
-    openai_api_key: str = Depends(verify_token)
+    gemini_api_key: str = Depends(verify_token)
 ) -> DocumentResponse:
     """
     Main HackRx 6.0 endpoint - Process single document and answer questions
@@ -201,20 +201,22 @@ async def process_documents(
         "documents": "https://example.com/document.pdf",
         "questions": ["Question 1", "Question 2", ...]
     }
+    
+    Authentication: Bearer token with your Gemini API key
     """
     
     request_id = str(uuid.uuid4())
     start_time = time.time()
     
     logger.info(f"🔍 Processing request {request_id}: 1 document, {len(request.questions)} questions")
-    logger.info(f"🔑 Using OpenAI API key: {openai_api_key[:10]}...")
+    logger.info(f"🔑 Using Gemini API key: {gemini_api_key[:10]}...")
     
     try:
         # Initialize pipelines with the provided API key (bearer token)
         # Create new instances per request to use the specific API key
         try:
-            request_document_pipeline = DocumentIngestionPipeline(openai_api_key=openai_api_key)
-            request_llm_pipeline = TwoStageLLMPipeline(openai_api_key=openai_api_key)
+            request_document_pipeline = DocumentIngestionPipeline(gemini_api_key=gemini_api_key)
+            request_llm_pipeline = TwoStageLLMPipeline(gemini_api_key=gemini_api_key)
             logger.info("✅ Pipelines initialized with provided API key")
         except Exception as api_key_error:
             logger.warning(f"⚠️ Failed to initialize with provided API key: {api_key_error}")

@@ -12,7 +12,7 @@ class IngestionConfig:
     
     def __init__(self):
         # API Keys
-        self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+        self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
         self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
         
         # Directory settings
@@ -33,7 +33,9 @@ class IngestionConfig:
         self.MAX_FILE_SIZE_MB = 50  # Maximum file size in MB
         
         # Multimodal settings
-        self.VISION_MODEL = "gpt-4o"
+        self.VISION_MODEL = "gemini-1.5-flash"
+        self.LLM_MODEL = "gemini-1.5-flash"  # Main model for text generation
+        self.EMBEDDING_MODEL = "models/text-embedding-004"  # Gemini embedding model
         self.MAX_VISION_TOKENS = 500
         
         # Table extraction settings (deployment-ready)
@@ -58,8 +60,7 @@ class IngestionConfig:
         self.PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", default_index_name)
         self.PINECONE_CLOUD = os.getenv("PINECONE_CLOUD", "aws")
         self.PINECONE_REGION = os.getenv("PINECONE_REGION", "us-east-1")
-        self.EMBEDDING_MODEL = "text-embedding-3-small"  # Cost-effective OpenAI model
-        self.EMBEDDING_DIMENSION = 1536  # Dimension for text-embedding-3-small
+        self.EMBEDDING_DIMENSION = 768  # Dimension for Gemini text-embedding-004
         self.VECTOR_METRIC = "cosine"  # Recommended for text embeddings
         self.BATCH_SIZE = 100  # Batch size for vector operations
         
@@ -67,8 +68,8 @@ class IngestionConfig:
         """Validate configuration and return status"""
         issues = []
         
-        if not self.OPENAI_API_KEY:
-            issues.append("OPENAI_API_KEY environment variable not set")
+        if not self.GEMINI_API_KEY:
+            issues.append("GEMINI_API_KEY environment variable not set")
         
         if not self.PINECONE_API_KEY:
             issues.append("PINECONE_API_KEY environment variable not set")
@@ -97,7 +98,7 @@ class IngestionConfig:
                 "max_chunk_size": self.MAX_CHUNK_SIZE,
                 "chunk_overlap": self.CHUNK_OVERLAP,
                 "supported_formats": list(self.SUPPORTED_FORMATS),
-                "has_openai_key": bool(self.OPENAI_API_KEY),
+                "has_gemini_key": bool(self.GEMINI_API_KEY),
                 "has_pinecone_key": bool(self.PINECONE_API_KEY),
                 "pinecone_index_name": self.PINECONE_INDEX_NAME,
                 "embedding_model": self.EMBEDDING_MODEL
@@ -123,14 +124,14 @@ class IngestionConfig:
             results['pdfplumber'] = False
             print("❌ PDFPlumber not available")
         
-        # Test OpenAI
+        # Test Google Generative AI
         try:
-            import openai
-            results['openai'] = True
-            print("✅ OpenAI client available")
+            import google.generativeai as genai
+            results['google_generativeai'] = True
+            print("✅ Google Generative AI client available")
         except ImportError:
-            results['openai'] = False
-            print("❌ OpenAI client not available")
+            results['google_generativeai'] = False
+            print("❌ Google Generative AI client not available")
         
         # Test PyMuPDF
         try:
@@ -168,7 +169,7 @@ def setup_environment():
         for issue in validation["issues"]:
             print(f"   - {issue}")
         print("\n📝 Setup Instructions:")
-        print("   1. Set OPENAI_API_KEY in your environment or .env file")
+        print("   1. Set GEMINI_API_KEY in your environment or .env file")
         print("   2. Ensure all directories are writable")
         return False
     

@@ -14,7 +14,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 # import tiktoken  # Commented out to avoid Rust compilation issues
 
-from openai import OpenAI
+import google.generativeai as genai
 from vector_database import VectorDatabasePipeline
 from config import config
 
@@ -74,30 +74,31 @@ class TwoStageLLMPipeline:
     Stage 2: Domain Expert - Generates detailed responses with citations
     """
     
-    def __init__(self, openai_api_key: Optional[str] = None):
+    def __init__(self, gemini_api_key: Optional[str] = None):
         """Initialize the two-stage pipeline"""
         # Store API key for potential fallback
-        self.primary_api_key = openai_api_key
-        self.fallback_api_key = config.OPENAI_API_KEY
+        self.primary_api_key = gemini_api_key
+        self.fallback_api_key = config.GEMINI_API_KEY
         
         # Try to initialize with provided key, fallback to env key
         try:
-            self.openai_client = OpenAI(api_key=openai_api_key or config.OPENAI_API_KEY)
-            self.current_api_key = openai_api_key or config.OPENAI_API_KEY
-            logger.info(f"✅ OpenAI client initialized with key: {self.current_api_key[:10]}...")
+            genai.configure(api_key=gemini_api_key or config.GEMINI_API_KEY)
+            self.model = genai.GenerativeModel(config.LLM_MODEL)
+            self.current_api_key = gemini_api_key or config.GEMINI_API_KEY
+            logger.info(f"✅ Gemini client initialized with key: {self.current_api_key[:10]}...")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize OpenAI client: {e}")
+            logger.error(f"❌ Failed to initialize Gemini client: {e}")
             raise
             
         self.retrieval_pipeline = VectorDatabasePipeline()
         
         # LLM configuration for optimal performance
-        self.task_analyzer_model = "gpt-4-1106-preview"  # For complex reasoning
-        self.domain_expert_model = "gpt-4-1106-preview"  # For detailed responses
+        self.task_analyzer_model = config.LLM_MODEL  # Gemini for complex reasoning
+        self.domain_expert_model = config.LLM_MODEL  # Gemini for detailed responses
         
-        # Token counting for optimization (using fallback estimation instead of tiktoken)
-        self.encoding = None  # Will use _estimate_tokens() for token counting
-        logger.info("ℹ️ Using fallback token counting (tiktoken disabled for deployment)")
+        # Token counting for optimization (using Gemini's built-in counting)
+        self.encoding = None  # Will use Gemini's count_tokens() method
+        logger.info("ℹ️ Using Gemini's built-in token counting")
         
         # Performance tracking
         self.total_tokens_used = 0
@@ -511,10 +512,10 @@ RESPOND IN THIS EXACT JSON FORMAT:
         return len(text) // 4
     
     def _calculate_cost(self, total_tokens: int) -> float:
-        """Calculate estimated cost based on GPT-4 pricing"""
-        # GPT-4 pricing (approximate): $0.03 per 1K tokens input, $0.06 per 1K tokens output
-        # Using average of $0.045 per 1K tokens for simplicity
-        return (total_tokens / 1000) * 0.045
+        """Calculate estimated cost based on Gemini pricing"""
+        # Gemini 1.5 Flash is free up to 15 requests per minute
+        # For paid tier: ~$0.00075 per 1K tokens (much cheaper than GPT-4)
+        return (total_tokens / 1000) * 0.00075
     
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics for monitoring"""

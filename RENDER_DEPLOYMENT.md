@@ -6,7 +6,7 @@
 1. **GitHub Repository**: Your code must be in a GitHub repository
 2. **Render Account**: Sign up at [render.com](https://render.com)
 3. **API Keys**: 
-   - OpenAI API Key (with billing enabled)
+   - Google Gemini API Key (free tier available)
    - Pinecone API Key
 
 ## 🛠️ Deployment Steps
@@ -47,7 +47,7 @@ In Render Dashboard → Your Service → Environment:
 
 ```bash
 # Required API Keys
-OPENAI_API_KEY=sk-proj-your_actual_openai_key_here
+GEMINI_API_KEY=your_actual_gemini_key_here
 PINECONE_API_KEY=your_actual_pinecone_key_here
 
 # Optional Configuration
@@ -91,9 +91,9 @@ curl https://your-app-name.onrender.com/health
 ```bash
 curl -X POST "https://your-app-name.onrender.com/hackrx/run" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_OPENAI_API_KEY" \
+  -H "Authorization: Bearer YOUR_GEMINI_API_KEY" \
   -d '{
-    "documents": ["https://example.com/sample.pdf"],
+    "documents": "https://example.com/sample.pdf",
     "questions": ["What is this document about?"]
   }'
 ```

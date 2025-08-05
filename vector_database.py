@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from collections import Counter
 
 import numpy as np
-from openai import OpenAI
+import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
 
 from config import config
@@ -64,7 +64,7 @@ class VectorDatabasePipeline:
             auto_generate_index: Whether to auto-generate unique index name
         """
         # API Keys
-        self.openai_api_key = config.OPENAI_API_KEY
+        self.gemini_api_key = config.GEMINI_API_KEY
         self.pinecone_api_key = config.PINECONE_API_KEY
         
         # Auto-generate unique index name if needed
@@ -76,13 +76,13 @@ class VectorDatabasePipeline:
         else:
             self.index_name = config.PINECONE_INDEX_NAME
         
-        if not self.openai_api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable.")
+        if not self.gemini_api_key:
+            raise ValueError("Gemini API key is required. Set GEMINI_API_KEY environment variable.")
         if not self.pinecone_api_key:
             raise ValueError("Pinecone API key is required. Set PINECONE_API_KEY environment variable.")
         
         # Initialize clients
-        self.openai_client = OpenAI(api_key=self.openai_api_key)
+        genai.configure(api_key=self.gemini_api_key)
         self.pinecone_client = Pinecone(api_key=self.pinecone_api_key)
         
         # Configuration
@@ -158,7 +158,7 @@ class VectorDatabasePipeline:
     
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings for a list of texts using OpenAI.
+        Generate embeddings for a list of texts using Gemini.
         
         Args:
             texts: List of text strings to embed
@@ -169,15 +169,18 @@ class VectorDatabasePipeline:
         try:
             logger.debug(f"🔄 Generating embeddings for {len(texts)} texts")
             
-            response = self.openai_client.embeddings.create(
-                input=texts,
-                model=self.embedding_model
-            )
+            embeddings = []
+            for text in texts:
+                response = genai.embed_content(
+                    model=self.embedding_model,
+                    content=text,
+                    task_type="retrieval_document"
+                )
+                embeddings.append(response['embedding'])
             
-            embeddings = [record.embedding for record in response.data]
             logger.debug(f"✅ Generated {len(embeddings)} embeddings")
             
-            # Rate limiting: 40-second delay between API calls
+            # Rate limiting: 3-second delay between API calls for Gemini
             logger.info("⏳ Waiting 40 seconds before next API call to avoid rate limits...")
             time.sleep(3)
             
