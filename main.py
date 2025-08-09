@@ -57,16 +57,18 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Initializing HackRx 6.0 Document Intelligence API")
     
     try:
-        # Initialize all pipeline components
+        # Initialize all pipeline components with environment API keys
         logger.info("📝 Initializing Document Ingestion Pipeline...")
-        document_pipeline = DocumentIngestionPipeline(
-            gemini_api_key=config.GEMINI_API_KEY
-        )
+        document_pipeline = DocumentIngestionPipeline()
         
         logger.info("🔍 Initializing Vector Database Pipeline...")
-        vector_pipeline = VectorDatabasePipeline()
+        # Use a consistent index name instead of auto-generating random ones
+        vector_pipeline = VectorDatabasePipeline(
+            index_name="hackrx-docs-main", 
+            auto_generate_index=False
+        )
         
-        logger.info("🧠 Initializing Two-Stage LLM Pipeline...")
+        logger.info("🧠 Initializing Gemini 2.0 Flash-Powered Two-Stage LLM Pipeline...")
         llm_pipeline = TwoStageLLMPipeline()
         
         logger.info("✅ All pipelines initialized successfully!")
@@ -102,24 +104,29 @@ app.add_middleware(
 
 
 # Authentication dependency
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """Verify Bearer token - now used as Gemini API key"""
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> bool:
+    """Verify Bearer token for authentication - API keys come from environment only"""
     token = credentials.credentials
     
-    # Basic token validation - assuming it's a Gemini API key
+    # Basic token validation - just check if it's a valid bearer token
     if not token or len(token) < 10:
         raise HTTPException(
             status_code=401,
-            detail="Invalid authentication token (expected Gemini API key)",
+            detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    # Additional validation for Gemini API key format
-    if not token.startswith(('AI', 'AIza')):
-        logger.warning(f"Bearer token doesn't look like Gemini API key: {token[:10]}...")
-        # Still allow it - will fallback to env key if this fails
+    # Simple token validation - you can add your own logic here
+    # For now, just check it's not empty and has reasonable length
+    if len(token) < 16:  # Minimum reasonable token length
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication token too short",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     
-    return token
+    logger.info(f"✅ Valid bearer token received: {token[:8]}...")
+    return True
 
 
 # Cache utilities
@@ -185,7 +192,7 @@ async def health_check():
 async def process_documents(
     request: DocumentRequest,
     background_tasks: BackgroundTasks,
-    gemini_api_key: str = Depends(verify_token)
+    authenticated: bool = Depends(verify_token)
 ) -> DocumentResponse:
     """
     Main HackRx 6.0 endpoint - Process single document and answer questions
@@ -202,27 +209,20 @@ async def process_documents(
         "questions": ["Question 1", "Question 2", ...]
     }
     
-    Authentication: Bearer token with your Gemini API key
+    Authentication: Bearer token (API keys from environment variables only)
     """
     
     request_id = str(uuid.uuid4())
     start_time = time.time()
     
     logger.info(f"🔍 Processing request {request_id}: 1 document, {len(request.questions)} questions")
-    logger.info(f"🔑 Using Gemini API key: {gemini_api_key[:10]}...")
+    logger.info(f"🔑 Using API keys from environment variables")
     
     try:
-        # Initialize pipelines with the provided API key (bearer token)
-        # Create new instances per request to use the specific API key
-        try:
-            request_document_pipeline = DocumentIngestionPipeline(gemini_api_key=gemini_api_key)
-            request_llm_pipeline = TwoStageLLMPipeline(gemini_api_key=gemini_api_key)
-            logger.info("✅ Pipelines initialized with provided API key")
-        except Exception as api_key_error:
-            logger.warning(f"⚠️ Failed to initialize with provided API key: {api_key_error}")
-            logger.info("🔄 Falling back to environment API key")
-            request_document_pipeline = document_pipeline  # Use global instance
-            request_llm_pipeline = llm_pipeline  # Use global instance
+        # Use global pipeline instances with environment API keys only
+        request_document_pipeline = document_pipeline
+        request_llm_pipeline = llm_pipeline
+        logger.info("✅ Using pipelines with environment API keys")
         
         # Check cache first
         cache_key = get_cache_key([str(request.documents)], request.questions)
@@ -288,6 +288,11 @@ async def process_documents(
                 chunk_data.append(chunk_dict)
             
             # Process through vector pipeline
+            # First ensure the index exists
+            if not vector_pipeline.create_index():
+                logger.error("❌ Failed to create/verify Pinecone index")
+                raise Exception("Failed to create Pinecone index")
+            
             vector_records = vector_pipeline.prepare_vector_records(chunk_data)
             vector_pipeline.upsert_vectors(vector_records, namespace="documents")
             

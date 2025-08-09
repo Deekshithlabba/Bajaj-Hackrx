@@ -91,7 +91,7 @@ curl https://your-app-name.onrender.com/health
 ```bash
 curl -X POST "https://your-app-name.onrender.com/hackrx/run" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_GEMINI_API_KEY" \
+  -H "Authorization: Bearer your_unique_bearer_token_here" \
   -d '{
     "documents": "https://example.com/sample.pdf",
     "questions": ["What is this document about?"]

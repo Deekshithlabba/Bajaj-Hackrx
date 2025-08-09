@@ -26,10 +26,10 @@ from dataclasses import dataclass
 from collections import Counter
 
 import numpy as np
-import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
 
 from config import config
+from gemini_api_manager import gemini_api_manager
 
 
 # Configure logging
@@ -82,7 +82,7 @@ class VectorDatabasePipeline:
             raise ValueError("Pinecone API key is required. Set PINECONE_API_KEY environment variable.")
         
         # Initialize clients
-        genai.configure(api_key=self.gemini_api_key)
+        self.api_manager = gemini_api_manager
         self.pinecone_client = Pinecone(api_key=self.pinecone_api_key)
         
         # Configuration
@@ -158,7 +158,7 @@ class VectorDatabasePipeline:
     
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings for a list of texts using Gemini.
+        Generate embeddings using optimized Gemini API manager with rate limiting.
         
         Args:
             texts: List of text strings to embed
@@ -167,23 +167,12 @@ class VectorDatabasePipeline:
             List of embedding vectors
         """
         try:
-            logger.debug(f"🔄 Generating embeddings for {len(texts)} texts")
+            logger.debug(f"🔄 Generating embeddings for {len(texts)} texts using dedicated embedding API")
             
-            embeddings = []
-            for text in texts:
-                response = genai.embed_content(
-                    model=self.embedding_model,
-                    content=text,
-                    task_type="retrieval_document"
-                )
-                embeddings.append(response['embedding'])
+            # Use the optimized API manager for embeddings
+            embeddings = self.api_manager.generate_embeddings(texts)
             
             logger.debug(f"✅ Generated {len(embeddings)} embeddings")
-            
-            # Rate limiting: 3-second delay between API calls for Gemini
-            logger.info("⏳ Waiting 40 seconds before next API call to avoid rate limits...")
-            time.sleep(3)
-            
             return embeddings
             
         except Exception as e:
@@ -367,10 +356,10 @@ class VectorDatabasePipeline:
             raise
     
     def _semantic_search(self, query: str, top_k: int, 
-                        namespace: str, filter_dict: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        namespace: str, filter_dict: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Pure semantic search using embeddings"""
         # Generate embedding for query
-        query_embedding = self.generate_embeddings([query])[0]
+        query_embedding = self.api_manager.generate_query_embedding(query)
         
         # Search Pinecone
         results = self.index.query(

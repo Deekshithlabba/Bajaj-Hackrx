@@ -14,11 +14,11 @@ pandas>=2.2.0  # Updated for Python 3.13 compatibility
 pdfplumber==0.10.0
 Pillow>=10.2.0
 
-# AI and API integration - Google Gemini
+# AI and API integration - Google Gemini (Completely replaced OpenAI)
 google-generativeai>=0.3.0
 
 # Vector database - using standard client without grpc
-pinecone>=3.0.0
+pinecone>=2.32.3
 numpy>=1.24.0  # Updated for Python 3.13 compatibility
 
 # HTTP requests and utilities

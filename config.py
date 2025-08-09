@@ -32,11 +32,30 @@ class IngestionConfig:
         self.SUPPORTED_FORMATS = {'.pdf', '.docx', '.doc'}
         self.MAX_FILE_SIZE_MB = 50  # Maximum file size in MB
         
-        # Multimodal settings
-        self.VISION_MODEL = "gemini-1.5-flash"
-        self.LLM_MODEL = "gemini-1.5-flash"  # Main model for text generation
-        self.EMBEDDING_MODEL = "models/text-embedding-004"  # Gemini embedding model
+        # Multi-API-Key Gemini Configuration for Optimal Performance
+        
+        # Embedding Service (Using proper dedicated embedding model)
+        self.GEMINI_EMBEDDING_API_KEY = os.getenv("GEMINI_EMBEDDING_API_KEY")
+        self.EMBEDDING_MODEL = "models/text-embedding-004"  # Proper embedding model
+        self.EMBEDDING_BATCH_SIZE = 5  # Reduced to manage daily quotas better
+        self.EMBEDDING_DAILY_QUOTA = 1000  # Free tier daily limit
+        self.DISABLE_QUOTA_CHECK = os.getenv("DISABLE_QUOTA_CHECK", "false").lower() == "true"  # Emergency bypass
+        
+        # LLM Stage 1: Task Analyzer (Gemini 2.0 Flash for fast analysis)
+        self.GEMINI_ANALYZER_API_KEY = os.getenv("GEMINI_ANALYZER_API_KEY") 
+        self.TASK_ANALYZER_MODEL = "gemini-2.0-flash-exp"  # Latest 2.0 Flash model
+        
+        # LLM Stage 2: Domain Expert (Gemini 2.0 Flash for high-quality responses)
+        self.GEMINI_EXPERT_API_KEY = os.getenv("GEMINI_EXPERT_API_KEY")
+        self.DOMAIN_EXPERT_MODEL = "gemini-2.0-flash-exp"  # Latest 2.0 Flash model
+        
+        # Vision Processing (For images/charts)
+        self.GEMINI_VISION_API_KEY = os.getenv("GEMINI_VISION_API_KEY")
+        self.VISION_MODEL = "gemini-2.0-flash-exp"  # Latest 2.0 multimodal model
         self.MAX_VISION_TOKENS = 500
+        
+        # Fallback: Single API key for all services if individual keys not provided
+        self.GEMINI_MASTER_API_KEY = os.getenv("GEMINI_API_KEY")  # Backward compatibility
         
         # Table extraction settings (deployment-ready)
         self.TABLE_EXTRACTION_METHOD = "pdfplumber"  # Python-only, no system deps
@@ -60,7 +79,7 @@ class IngestionConfig:
         self.PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", default_index_name)
         self.PINECONE_CLOUD = os.getenv("PINECONE_CLOUD", "aws")
         self.PINECONE_REGION = os.getenv("PINECONE_REGION", "us-east-1")
-        self.EMBEDDING_DIMENSION = 768  # Dimension for Gemini text-embedding-004
+        self.EMBEDDING_DIMENSION = 768  # Proper dimension for text-embedding-004
         self.VECTOR_METRIC = "cosine"  # Recommended for text embeddings
         self.BATCH_SIZE = 100  # Batch size for vector operations
         
@@ -68,8 +87,25 @@ class IngestionConfig:
         """Validate configuration and return status"""
         issues = []
         
-        if not self.GEMINI_API_KEY:
-            issues.append("GEMINI_API_KEY environment variable not set")
+        # Check API key configuration (with fallback logic)
+        api_keys_available = []
+        
+        # Check individual service keys
+        if self.GEMINI_EMBEDDING_API_KEY:
+            api_keys_available.append("EMBEDDING")
+        if self.GEMINI_ANALYZER_API_KEY:
+            api_keys_available.append("ANALYZER")
+        if self.GEMINI_EXPERT_API_KEY:
+            api_keys_available.append("EXPERT")
+        if self.GEMINI_VISION_API_KEY:
+            api_keys_available.append("VISION")
+            
+        # Check master fallback key
+        if self.GEMINI_MASTER_API_KEY:
+            api_keys_available.append("MASTER")
+            
+        if not api_keys_available:
+            issues.append("No Gemini API keys configured. Set at least GEMINI_API_KEY or individual service keys.")
         
         if not self.PINECONE_API_KEY:
             issues.append("PINECONE_API_KEY environment variable not set")
@@ -98,10 +134,21 @@ class IngestionConfig:
                 "max_chunk_size": self.MAX_CHUNK_SIZE,
                 "chunk_overlap": self.CHUNK_OVERLAP,
                 "supported_formats": list(self.SUPPORTED_FORMATS),
-                "has_gemini_key": bool(self.GEMINI_API_KEY),
+                "gemini_api_keys": {
+                    "embedding": bool(self.GEMINI_EMBEDDING_API_KEY),
+                    "analyzer": bool(self.GEMINI_ANALYZER_API_KEY), 
+                    "expert": bool(self.GEMINI_EXPERT_API_KEY),
+                    "vision": bool(self.GEMINI_VISION_API_KEY),
+                    "master_fallback": bool(self.GEMINI_MASTER_API_KEY)
+                },
                 "has_pinecone_key": bool(self.PINECONE_API_KEY),
                 "pinecone_index_name": self.PINECONE_INDEX_NAME,
-                "embedding_model": self.EMBEDDING_MODEL
+                "models": {
+                    "embedding": self.EMBEDDING_MODEL,
+                    "task_analyzer": self.TASK_ANALYZER_MODEL,
+                    "domain_expert": self.DOMAIN_EXPERT_MODEL,
+                    "vision": self.VISION_MODEL
+                }
             }
         }
     
@@ -169,7 +216,12 @@ def setup_environment():
         for issue in validation["issues"]:
             print(f"   - {issue}")
         print("\n📝 Setup Instructions:")
-        print("   1. Set GEMINI_API_KEY in your environment or .env file")
+        print("   1. Set individual Gemini API keys for optimal performance:")
+        print("      - GEMINI_EMBEDDING_API_KEY (for embeddings)")
+        print("      - GEMINI_ANALYZER_API_KEY (for task analysis)")
+        print("      - GEMINI_EXPERT_API_KEY (for domain expertise)")
+        print("      - GEMINI_VISION_API_KEY (for image processing)")
+        print("   2. Or set GEMINI_API_KEY as a fallback for all services")
         print("   2. Ensure all directories are writable")
         return False
     

@@ -15,6 +15,7 @@ import io
 import json
 import time
 import hashlib
+import logging
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from urllib.parse import urlparse
@@ -50,8 +51,11 @@ except ImportError:
     partition = None
 
 # For multimodal processing
-# import openai  # Replaced with Gemini
-import google.generativeai as genai
+# OpenAI completely replaced with Gemini
+from gemini_api_manager import gemini_api_manager
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 @dataclass
 class DocumentChunk:
@@ -67,26 +71,28 @@ class DocumentChunk:
 class DocumentIngestionPipeline:
     """Advanced document ingestion pipeline with multimodal capabilities"""
     
-    def __init__(self, gemini_api_key: str = None, temp_dir: str = "./temp_documents"):
+    def __init__(self, temp_dir: str = "./temp_documents"):
         """
         Initialize the ingestion pipeline
         
         Args:
-            gemini_api_key: Gemini API key for multimodal processing
             temp_dir: Directory to store temporary downloaded documents
         """
-        # Initialize Gemini client
+        # Initialize Gemini API manager for vision processing (using environment keys only)
         try:
-            self.gemini_api_key = gemini_api_key or config.GEMINI_API_KEY
-            if self.gemini_api_key:
-                genai.configure(api_key=self.gemini_api_key)
-                self.vision_model = genai.GenerativeModel(config.VISION_MODEL)
+            self.api_manager = gemini_api_manager
+            
+            # Check if vision service is available from environment
+            if self.api_manager.service_keys.get('vision') or self.api_manager.service_keys.get('master'):
+                self.vision_available = True
+                logger.info("✅ Vision processing enabled with environment API keys")
             else:
-                print("Warning: No Gemini API key provided. Image processing will be disabled.")
-                self.vision_model = None
+                self.vision_available = False
+                logger.warning("⚠️ Vision processing disabled - no environment API keys available")
+                
         except Exception as e:
-            print(f"Error initializing Gemini client: {e}")
-            self.vision_model = None
+            print(f"Error initializing Gemini API manager: {e}")
+            self.vision_available = False
         self.temp_dir = Path(temp_dir)
         self.temp_dir.mkdir(exist_ok=True)
         
@@ -446,9 +452,9 @@ class DocumentIngestionPipeline:
         if hasattr(self, 'skip_image_processing') and self.skip_image_processing:
             return "[Image content - processing skipped]"
         
-        # Skip if no vision model available
-        if not self.vision_model:
-            return "[Image content - Gemini not configured]"
+        # Skip if vision processing not available
+        if not self.vision_available:
+            return "[Image content - Gemini vision not configured]"
         
         try:
             # Convert bytes to PIL Image for Gemini
@@ -459,9 +465,7 @@ class DocumentIngestionPipeline:
             
             prompt = "Describe this image in detail. Focus on any text, charts, diagrams, or important visual information that would be relevant for document analysis. If there's text in the image, transcribe it accurately."
             
-            response = self.vision_model.generate_content([prompt, image])
-            
-            description = response.text
+            description = self.api_manager.process_vision(prompt, image)
             return description if description else "[Image description unavailable]"
             
         except Exception as e:
@@ -634,12 +638,12 @@ class DocumentIngestionPipeline:
 # Example usage and testing
 if __name__ == "__main__":
     # Initialize the pipeline
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        print("Please set OPENAI_API_KEY environment variable")
+    # Check if environment variables are set
+    if not os.getenv("GEMINI_API_KEY"):
+        print("Please set GEMINI_API_KEY environment variable")
         exit(1)
     
-    pipeline = DocumentIngestionPipeline(openai_api_key)
+    pipeline = DocumentIngestionPipeline()
     
     # Example usage with a sample document URL
     sample_url = "https://hackrx.blob.core.windows.net/assets/policy.pdf?sv=2023-01-03&st=2025-07-04T09%3A11%3A24Z&se=2027-07-05T09%3A11%3A00Z&sr=b&sp=r&sig=N4a9OU0w0QXO6AOIBiu4bpl7AXvEZogeT%2FjUHNO7HzQ%3D"
