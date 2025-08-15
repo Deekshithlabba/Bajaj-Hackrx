@@ -106,6 +106,12 @@ class TwoStageLLMPipeline:
             'expert': {'calls': 0, 'tokens': 0, 'avg_time': 0}
         }
         
+        # Response caching for performance optimization
+        self.response_cache = {}
+        self.cache_ttl = 1800  # 30 minutes
+        self.cache_hits = 0
+        self.cache_misses = 0
+        
         logger.info("🚀 Two-Stage LLM Pipeline initialized successfully")
     
     def stage1_task_analyzer(self, user_query: str) -> TaskAnalysis:
@@ -140,19 +146,19 @@ class TwoStageLLMPipeline:
 
 Please respond with a JSON object containing the domain analysis and 3 few-shot examples."""
             
-            # Try the API call with retry on empty response
+            # Try the API call with reduced retry (2 attempts max)
             response_text = None
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     response_text = self.api_manager.analyze_task(analyzer_full_prompt)
                     if response_text and response_text.strip():
                         break
                     logger.warning(f"🔄 Attempt {attempt + 1}: Empty response, retrying...")
-                    time.sleep(2)
+                    time.sleep(1)  # Reduced from 2s to 1s
                 except Exception as e:
                     logger.warning(f"🔄 Attempt {attempt + 1} failed: {e}")
-                    if attempt < 2:  # Not the last attempt
-                        time.sleep(2)
+                    if attempt < 1:  # Not the last attempt
+                        time.sleep(1)  # Reduced from 2s to 1s
                     else:
                         raise
             
@@ -211,9 +217,7 @@ Please respond with a JSON object containing the domain analysis and 3 few-shot 
             self.total_tokens_used += tokens_used
             self.stage_stats['analyzer']['tokens'] += tokens_used
             
-            # Rate limiting: Brief delay between API calls
-            logger.info("⏳ Brief delay before next API call...")
-            time.sleep(1)
+            # Removed unnecessary delay - API manager handles rate limiting
             
             # Build structured TaskAnalysis object
             task_analysis = TaskAnalysis(
@@ -263,73 +267,35 @@ Please respond with a JSON object containing the domain analysis and 3 few-shot 
         # Extract key terms from user query for better retrieval
         key_terms = self._extract_key_search_terms(user_query)
         
-        # ENHANCED RETRIEVAL STRATEGY - Multiple searches with increased k
+        # OPTIMIZED RETRIEVAL STRATEGY - Reduced from 5 to 2 targeted searches
         all_results = []
         
-        # Search 1: Specific term extraction for exact matches (INCREASED k=10)
-        specific_terms = self._extract_specific_terms(user_query)
-        logger.info(f"🔍 Search 1: Specific terms - '{specific_terms}'")
-        specific_results = self.retrieval_pipeline.search_similar(
-            query=specific_terms,
-            top_k=10,  # INCREASED from 4 to 10
+        # Search 1: Smart query optimization combining key terms and specifics
+        smart_query = self._build_smart_query(user_query, key_terms)
+        logger.info(f"🔍 Search 1: Smart combined query - '{smart_query}'")
+        primary_results = self.retrieval_pipeline.search_similar(
+            query=smart_query,
+            top_k=6,  # REDUCED from 10 to 6
             hybrid=True,
-            semantic_weight=0.6,  # More keyword focused
+            semantic_weight=0.7,  # Balanced approach
             namespace="documents"
         )
-        if specific_results and "results" in specific_results:
-            all_results.extend(specific_results["results"])
+        if primary_results and "results" in primary_results:
+            all_results.extend(primary_results["results"])
         
-        # Search 2: Key terms with higher k (INCREASED k=10)
-        logger.info(f"🔍 Search 2: Key terms - '{key_terms}'")
-        key_results = self.retrieval_pipeline.search_similar(
-            query=key_terms,
-            top_k=10,  # INCREASED from 4 to 10
-            hybrid=True,
-            semantic_weight=0.7,
-            namespace="documents"
-        )
-        if key_results and "results" in key_results:
-            all_results.extend(key_results["results"])
-        
-        # Search 3: Original question for broader context (INCREASED k=8)
-        logger.info(f"🔍 Search 3: Original question")
-        original_results = self.retrieval_pipeline.search_similar(
+        # Search 2: Fallback search with original query for context
+        logger.info(f"🔍 Search 2: Fallback context search")
+        fallback_results = self.retrieval_pipeline.search_similar(
             query=user_query,
-            top_k=8,  # INCREASED from 4 to 8
+            top_k=4,  # REDUCED from 8 to 4
             hybrid=True,
             semantic_weight=0.9,
             namespace="documents"
         )
-        if original_results and "results" in original_results:
-            all_results.extend(original_results["results"])
+        if fallback_results and "results" in fallback_results:
+            all_results.extend(fallback_results["results"])
         
-        # Search 4: Definition-focused search
-        definition_query = self._build_definition_query(user_query)
-        logger.info(f"🔍 Search 4: Definition-focused - '{definition_query}'")
-        definition_results = self.retrieval_pipeline.search_similar(
-            query=definition_query,
-            top_k=5,
-            hybrid=True,
-            semantic_weight=0.5,  # More balanced for definitions
-            namespace="documents"
-        )
-        if definition_results and "results" in definition_results:
-            all_results.extend(definition_results["results"])
-        
-        # Search 5: Renewal/Continuity context search (NEW - targets the missing chunk!)
-        renewal_query = self._build_renewal_query(user_query)
-        logger.info(f"🔍 Search 5: Renewal context - '{renewal_query}'")
-        renewal_results = self.retrieval_pipeline.search_similar(
-            query=renewal_query,
-            top_k=8,
-            hybrid=True,
-            semantic_weight=0.4,  # More keyword focused
-            namespace="documents"
-        )
-        if renewal_results and "results" in renewal_results:
-            all_results.extend(renewal_results["results"])
-        
-        # ADVANCED: Combine, deduplicate, and re-rank
+        # STREAMLINED: Combine, deduplicate, and re-rank
         seen_ids = set()
         unique_results = []
         for result in all_results:
@@ -340,9 +306,9 @@ Please respond with a JSON object containing the domain analysis and 3 few-shot 
         
         # Re-rank results based on relevance to original query
         re_ranked_results = self._re_rank_results(unique_results, user_query)
-        expert_context = {"results": re_ranked_results[:15]}  # INCREASED to 15 for comprehensive coverage
+        expert_context = {"results": re_ranked_results[:8]}  # REDUCED from 15 to 8
         
-        logger.info(f"✅ Enhanced search found {len(unique_results)} unique results, returning top 15 after re-ranking")
+        logger.info(f"✅ Optimized search found {len(unique_results)} unique results, returning top 8 after re-ranking")
         
         # Log the top results for debugging
         if re_ranked_results:
@@ -364,19 +330,19 @@ Please respond with a JSON object containing the domain analysis and 3 few-shot 
 
 Please respond in JSON format with your answer."""
             
-            # Try the API call with retry on empty response
+            # Try the API call with reduced retry (2 attempts max)
             response_text = None
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     response_text = self.api_manager.generate_expert_response(expert_full_prompt)
                     if response_text and response_text.strip():
                         break
                     logger.warning(f"🔄 Stage 2 Attempt {attempt + 1}: Empty response, retrying...")
-                    time.sleep(2)
+                    time.sleep(1)  # Reduced from 2s to 1s
                 except Exception as e:
                     logger.warning(f"🔄 Stage 2 Attempt {attempt + 1} failed: {e}")
-                    if attempt < 2:  # Not the last attempt
-                        time.sleep(2)
+                    if attempt < 1:  # Not the last attempt
+                        time.sleep(1)  # Reduced from 2s to 1s
                     else:
                         raise
             
@@ -417,9 +383,7 @@ Please respond in JSON format with your answer."""
             self.total_tokens_used += tokens_used
             self.stage_stats['expert']['tokens'] += tokens_used
             
-            # Rate limiting: Brief delay between API calls
-            logger.info("⏳ Brief delay before next API call...")
-            time.sleep(1)
+            # Removed unnecessary delay - API manager handles rate limiting
             
             # Step 4: Extract citations and build structured response
             sections = self._build_response_sections(expert_json, expert_context)
@@ -463,6 +427,17 @@ Please respond in JSON format with your answer."""
         pipeline_start = time.time()
         logger.info(f"🚀 Processing query: {user_query}")
         
+        # Check cache first for performance optimization
+        cache_key = self._generate_cache_key(user_query)
+        cached_response = self._get_cached_response(cache_key)
+        if cached_response:
+            self.cache_hits += 1
+            logger.info(f"✅ Cache hit! Returning cached response in {time.time() - pipeline_start:.2f}s")
+            return cached_response
+        
+        self.cache_misses += 1
+        logger.info(f"💭 Cache miss. Processing new query...")
+        
         try:
             # Stage 1: Task Analysis
             task_analysis = self.stage1_task_analyzer(user_query)
@@ -493,6 +468,9 @@ Please respond in JSON format with your answer."""
             }
             
             logger.info(f"🎉 Pipeline Complete: {final_response['performance']['total_processing_time']:.2f}s, ${cost:.4f}")
+            
+            # Cache the response for future similar queries
+            self._cache_response(cache_key, final_response)
             
             return final_response
             
@@ -646,6 +624,30 @@ RESPOND IN THIS EXACT JSON FORMAT:
         logger.info(f"🔍 Extracted key search terms: '{key_terms}' from '{user_query}'")
         return key_terms
     
+    def _build_smart_query(self, user_query: str, key_terms: str) -> str:
+        """Build an optimized smart query that combines key terms with context"""
+        
+        query_lower = user_query.lower()
+        
+        # If key_terms is substantive, use a hybrid approach
+        if len(key_terms.split()) >= 2:
+            # Combine most specific terms with some context
+            if "grace period" in query_lower:
+                return f"grace period {key_terms} payment due date deadline"
+            elif "premium" in query_lower and "payment" in query_lower:
+                return f"premium payment {key_terms} due date deadline grace"
+            elif "claim" in query_lower:
+                return f"claim {key_terms} process procedure file"
+            elif "coverage" in query_lower or "benefit" in query_lower:
+                return f"coverage benefits {key_terms} policy"
+            else:
+                # Generic optimization
+                return f"{key_terms} policy insurance definition"
+        else:
+            # Fall back to original query with minor enhancements
+            return user_query
+    
+
     def _extract_specific_terms(self, user_query: str) -> str:
         """Extract the most specific terms for exact matching"""
         
@@ -925,12 +927,53 @@ Respond in JSON format like this:
             "estimated_cost": self.total_cost,
             "stage_performance": self.stage_stats,
             "api_usage": self.api_manager.get_usage_stats(),
-            "cache_stats": getattr(self.retrieval_pipeline, 'cache_stats', {}),
+            "cache_stats": {
+                "hits": self.cache_hits,
+                "misses": self.cache_misses,
+                "hit_rate": self.cache_hits / (self.cache_hits + self.cache_misses) if (self.cache_hits + self.cache_misses) > 0 else 0,
+                "cache_size": len(self.response_cache)
+            },
             "models_used": {
                 "task_analyzer": self.task_analyzer_model,
                 "domain_expert": self.domain_expert_model
             }
         }
+    
+    def _generate_cache_key(self, user_query: str) -> str:
+        """Generate a cache key for the query"""
+        import hashlib
+        # Normalize query for better cache hits
+        normalized_query = user_query.lower().strip()
+        return hashlib.md5(normalized_query.encode()).hexdigest()
+    
+    def _get_cached_response(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """Get cached response if available and not expired"""
+        if cache_key not in self.response_cache:
+            return None
+        
+        cached_data = self.response_cache[cache_key]
+        cache_time = cached_data["timestamp"]
+        
+        # Check if cache is still valid (not expired)
+        if time.time() - cache_time < self.cache_ttl:
+            return cached_data["response"]
+        else:
+            # Remove expired cache entry
+            del self.response_cache[cache_key]
+            return None
+    
+    def _cache_response(self, cache_key: str, response: Dict[str, Any]):
+        """Cache the response with timestamp"""
+        self.response_cache[cache_key] = {
+            "response": response,
+            "timestamp": time.time()
+        }
+        
+        # Simple cache size management - remove oldest if too large
+        if len(self.response_cache) > 100:  # Keep max 100 cached responses
+            oldest_key = min(self.response_cache.keys(), 
+                           key=lambda k: self.response_cache[k]["timestamp"])
+            del self.response_cache[oldest_key]
 
 
 # Example usage and testing

@@ -24,9 +24,9 @@ class IngestionConfig:
         for directory in [self.TEMP_DIR, self.OUTPUT_DIR, self.CACHE_DIR]:
             directory.mkdir(exist_ok=True)
         
-        # Chunking settings
-        self.MAX_CHUNK_SIZE = 1000  # Maximum characters per chunk
-        self.CHUNK_OVERLAP = 100    # Character overlap between chunks
+        # Optimized chunking settings to reduce API calls
+        self.MAX_CHUNK_SIZE = 2000  # INCREASED: Maximum characters per chunk (reduces chunks by ~50%)
+        self.CHUNK_OVERLAP = 150    # INCREASED: Character overlap between chunks
         
         # Processing settings
         self.SUPPORTED_FORMATS = {'.pdf', '.docx', '.doc'}
@@ -37,7 +37,7 @@ class IngestionConfig:
         # Embedding Service (Using proper dedicated embedding model)
         self.GEMINI_EMBEDDING_API_KEY = os.getenv("GEMINI_EMBEDDING_API_KEY")
         self.EMBEDDING_MODEL = "models/text-embedding-004"  # Proper embedding model
-        self.EMBEDDING_BATCH_SIZE = 5  # Reduced to manage daily quotas better
+        self.EMBEDDING_BATCH_SIZE = 20  # INCREASED: Process more texts per API call (5x reduction in calls)
         self.EMBEDDING_DAILY_QUOTA = 1000  # Free tier daily limit
         self.DISABLE_QUOTA_CHECK = os.getenv("DISABLE_QUOTA_CHECK", "false").lower() == "true"  # Emergency bypass
         

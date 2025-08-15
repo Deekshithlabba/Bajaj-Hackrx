@@ -271,30 +271,45 @@ async def process_documents(
                 }
                 chunks = optimized_chunks
             
-            # Index chunks in vector database using Person 2's pipeline
-            logger.info(f"🔍 Indexing {len(chunks)} chunks in vector database")
+            # Check if chunks are already indexed in vector database
+            vector_cache_key = f"vectors_{hashlib.md5(str(doc_url).encode()).hexdigest()}"
+            cached_vectors = document_cache.get(vector_cache_key)
             
-            # Convert chunks to the format expected by vector pipeline
-            chunk_data = []
-            for chunk in chunks:
-                chunk_dict = {
-                    "content": chunk.content,
-                    "content_type": chunk.content_type,
-                    "metadata": chunk.metadata,
-                    "page_number": chunk.page_number,
-                    "source_url": str(doc_url),
-                    "chunk_id": chunk.chunk_id
+            if cached_vectors and is_cache_valid(cached_vectors):
+                logger.info(f"📋 Using cached vector index for document: {doc_url} (skipping {len(chunks)} embeddings)")
+            else:
+                logger.info(f"🔍 Indexing {len(chunks)} chunks in vector database")
+                
+                # Convert chunks to the format expected by vector pipeline
+                chunk_data = []
+                for chunk in chunks:
+                    chunk_dict = {
+                        "content": chunk.content,
+                        "content_type": chunk.content_type,
+                        "metadata": chunk.metadata,
+                        "page_number": chunk.page_number,
+                        "source_url": str(doc_url),
+                        "chunk_id": chunk.chunk_id
+                    }
+                    chunk_data.append(chunk_dict)
+                
+                # Process through vector pipeline
+                # First ensure the index exists
+                if not vector_pipeline.create_index():
+                    logger.error("❌ Failed to create/verify Pinecone index")
+                    raise Exception("Failed to create Pinecone index")
+                
+                vector_records = vector_pipeline.prepare_vector_records(chunk_data)
+                vector_pipeline.upsert_vectors(vector_records, namespace="documents")
+                
+                # Cache the vector indexing completion
+                document_cache[vector_cache_key] = {
+                    "data": "indexed",
+                    "timestamp": time.time(),
+                    "chunks_count": len(chunks)
                 }
-                chunk_data.append(chunk_dict)
-            
-            # Process through vector pipeline
-            # First ensure the index exists
-            if not vector_pipeline.create_index():
-                logger.error("❌ Failed to create/verify Pinecone index")
-                raise Exception("Failed to create Pinecone index")
-            
-            vector_records = vector_pipeline.prepare_vector_records(chunk_data)
-            vector_pipeline.upsert_vectors(vector_records, namespace="documents")
+                
+                logger.info(f"✅ Vector indexing cached for future requests")
             
             all_processed_chunks.extend(chunks)
             processing_stats["documents_processed"] += 1

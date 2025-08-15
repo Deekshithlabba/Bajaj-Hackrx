@@ -7,6 +7,7 @@ for different Gemini services to optimize performance and avoid quotas.
 
 import time
 import logging
+import hashlib
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -88,6 +89,11 @@ class GeminiAPIManager:
         # Daily quota tracking
         self.daily_usage = defaultdict(int)
         self.last_reset_date = datetime.now().date()
+        
+        # Embedding cache to avoid regenerating same content
+        self.embedding_cache = {}
+        self.cache_hits = 0
+        self.cache_misses = 0
         
         self._initialize_models()
         self._initialize_rate_limits()
@@ -203,7 +209,7 @@ class GeminiAPIManager:
                 logger.warning(f"⚠️ Approaching daily quota: {current_usage}/{config.EMBEDDING_DAILY_QUOTA} ({usage_percentage:.1f}%)")
     
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using proper dedicated embedding model"""
+        """Generate embeddings using optimized batch processing with caching"""
         api_key = self.service_keys['embedding']
         if not api_key:
             raise ValueError("No embedding API key available")
@@ -212,35 +218,115 @@ class GeminiAPIManager:
         genai.configure(api_key=api_key)
         
         embeddings = []
+        texts_to_process = []
+        cache_indices = []
+        
+        # Check cache first to avoid redundant API calls
         for i, text in enumerate(texts):
-            # Rate limiting
+            text_hash = hashlib.md5(text.encode()).hexdigest()
+            if text_hash in self.embedding_cache:
+                embeddings.append(self.embedding_cache[text_hash])
+                self.cache_hits += 1
+            else:
+                embeddings.append(None)  # Placeholder
+                texts_to_process.append(text)
+                cache_indices.append(i)
+                self.cache_misses += 1
+        
+        if not texts_to_process:
+            logger.info(f"🎯 All {len(texts)} embeddings found in cache (100% cache hit rate)")
+            return embeddings
+        
+        logger.info(f"📊 Cache stats: {self.cache_hits} hits, {self.cache_misses} misses ({len(texts_to_process)} new embeddings needed)")
+        
+        batch_size = config.EMBEDDING_BATCH_SIZE  # Now 20 instead of 5
+        processed_embeddings = []
+        
+        # Process only uncached texts in batches
+        for i in range(0, len(texts_to_process), batch_size):
+            batch_texts = texts_to_process[i:i + batch_size]
+            
+            # Rate limiting (one call per batch instead of per text)
             self._wait_for_rate_limit(api_key, 'embedding')
             
             try:
-                # Use proper embedding model
-                response = genai.embed_content(
-                    model=config.EMBEDDING_MODEL,
-                    content=text,
-                    task_type="retrieval_document"
-                )
-                embeddings.append(response['embedding'])
+                # Process entire batch in single API call
+                if len(batch_texts) == 1:
+                    # Single text
+                    response = genai.embed_content(
+                        model=config.EMBEDDING_MODEL,
+                        content=batch_texts[0],
+                        task_type="retrieval_document"
+                    )
+                    batch_embeddings = [response['embedding']]
+                else:
+                    # Multiple texts in batch
+                    response = genai.embed_content(
+                        model=config.EMBEDDING_MODEL,
+                        content=batch_texts,
+                        task_type="retrieval_document"
+                    )
+                    batch_embeddings = response['embedding'] if isinstance(response['embedding'][0], list) else [response['embedding']]
                 
-                # Record successful call
+                # Cache new embeddings
+                for text, embedding in zip(batch_texts, batch_embeddings):
+                    text_hash = hashlib.md5(text.encode()).hexdigest()
+                    self.embedding_cache[text_hash] = embedding
+                
+                processed_embeddings.extend(batch_embeddings)
+                
+                # Record successful call (one call for entire batch)
                 self.key_usage[api_key].record_call(success=True)
                 
-                # Track daily usage for embedding service
+                # Track daily usage (one call, not per text)
                 self.daily_usage[api_key] += 1
                 
-                # Progress logging for large batches
-                if (i + 1) % 10 == 0:
-                    logger.debug(f"📊 Generated {i + 1}/{len(texts)} embeddings using proper embedding model")
+                # Progress logging
+                processed_count = min(i + batch_size, len(texts_to_process))
+                logger.info(f"📊 Generated embeddings for {processed_count}/{len(texts_to_process)} new texts (batch {i//batch_size + 1})")
                     
             except Exception as e:
-                logger.error(f"❌ Embedding generation failed for text {i}: {e}")
+                logger.error(f"❌ Batch embedding generation failed for batch {i//batch_size + 1}: {e}")
                 self.key_usage[api_key].record_call(success=False)
-                # Continue with next text rather than failing completely
-                embeddings.append([0.0] * config.EMBEDDING_DIMENSION)
+                
+                # Fallback: Try individual texts in this batch
+                logger.info(f"🔄 Trying individual texts for failed batch...")
+                for text in batch_texts:
+                    try:
+                        self._wait_for_rate_limit(api_key, 'embedding')
+                        response = genai.embed_content(
+                            model=config.EMBEDDING_MODEL,
+                            content=text,
+                            task_type="retrieval_document"
+                        )
+                        embedding = response['embedding']
+                        
+                        # Cache the embedding
+                        text_hash = hashlib.md5(text.encode()).hexdigest()
+                        self.embedding_cache[text_hash] = embedding
+                        
+                        processed_embeddings.append(embedding)
+                        self.key_usage[api_key].record_call(success=True)
+                        self.daily_usage[api_key] += 1
+                    except Exception as text_error:
+                        logger.error(f"❌ Individual text embedding failed: {text_error}")
+                        # Add zero vector as fallback
+                        processed_embeddings.append([0.0] * config.EMBEDDING_DIMENSION)
         
+        # Fill in the processed embeddings at correct positions
+        processed_idx = 0
+        for cache_idx in cache_indices:
+            embeddings[cache_idx] = processed_embeddings[processed_idx]
+            processed_idx += 1
+        
+        # Clean up cache if it gets too large (keep last 1000 entries)
+        if len(self.embedding_cache) > 1000:
+            # Remove oldest entries (simple cleanup)
+            cache_items = list(self.embedding_cache.items())
+            self.embedding_cache = dict(cache_items[-800:])  # Keep newest 800
+        
+        api_calls_saved = len(texts) - len(texts_to_process)
+        logger.info(f"✅ Generated {len(embeddings)} embeddings with caching (saved {api_calls_saved} API calls)")
         return embeddings
     
     def generate_query_embedding(self, query: str) -> List[float]:
