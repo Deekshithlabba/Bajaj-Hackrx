@@ -67,6 +67,16 @@ async def lifespan(app: FastAPI):
             index_name="hackrx-docs-main", 
             auto_generate_index=False
         )
+        # Ensure index exists at startup (avoid first-request race / missing index)
+        try:
+            logger.info("🛠️ Verifying Pinecone index 'hackrx-docs-main' at startup ...")
+            created = vector_pipeline.create_index()
+            if created:
+                logger.info("✅ Pinecone index ready (existing or created)")
+            else:
+                logger.warning("⚠️ Pinecone index verification returned False; will retry on request")
+        except Exception as ie:
+            logger.error(f"❌ Startup index creation/verification failed: {ie}")
         
         logger.info("🧠 Initializing Gemini 2.0 Flash-Powered Two-Stage LLM Pipeline...")
         llm_pipeline = TwoStageLLMPipeline()
@@ -418,6 +428,22 @@ async def general_exception_handler(request: Request, exc: Exception):
             details=str(exc) if config.DEBUG else None
         ).dict()
     )
+
+
+# Vector index stats / debug endpoint
+@app.get("/vector/stats", include_in_schema=False)
+async def vector_stats():
+    if not vector_pipeline:
+        return {"status": "uninitialized"}
+    try:
+        stats = vector_pipeline.get_index_stats()
+        return {
+            "status": "ok" if stats else "error",
+            "index_name": vector_pipeline.index_name,
+            "stats": stats
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 # Development server (for local testing only)

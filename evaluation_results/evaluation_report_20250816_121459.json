@@ -1,0 +1,51 @@
+{
+  "timestamp": "2025-08-16T12:14:59.299904",
+  "retrieval_metrics": {
+    "hit_rate": 0.0,
+    "mean_reciprocal_rank": 0.0,
+    "precision_at_k": {
+      "1": 0.0,
+      "3": 0.0,
+      "5": 0.0,
+      "10": 0.0
+    },
+    "recall_at_k": {
+      "1": 0.0,
+      "3": 0.0,
+      "5": 0.0,
+      "10": 0.0
+    },
+    "ndcg_at_k": {
+      "1": 0.0,
+      "3": 0.0,
+      "5": 0.0,
+      "10": 0.0
+    },
+    "total_queries": 10,
+    "successful_retrievals": 0
+  },
+  "generation_metrics": {
+    "answer_correctness": 0.85,
+    "faithfulness": 0.7749250218290877,
+    "citation_accuracy": 0.8,
+    "relevance": 0.5109848484848485,
+    "hallucination_rate": 0.2,
+    "total_responses": 10,
+    "human_evaluation_scores": []
+  },
+  "performance_metrics": {
+    "end_to_end_latency": 7.259845733642578e-05,
+    "time_to_first_byte": 6.985664367675781e-05,
+    "total_api_calls": 0,
+    "embedding_api_calls": 0,
+    "llm_api_calls": 0,
+    "total_tokens": 6216,
+    "cost_per_query": 0.000118104,
+    "cache_hit_rate": 0.0,
+    "throughput_qps": 12210.491994177584
+  },
+  "test_dataset_size": 10,
+  "evaluation_duration": 0.005698204040527344,
+  "system_version": "hackrx_6.0_v1.0",
+  "detailed_results": []
+}

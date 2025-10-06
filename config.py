@@ -13,6 +13,21 @@ class IngestionConfig:
     def __init__(self):
         # API Keys
         self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        # Backward compatibility: if legacy OPENAI_API_KEY is provided but GEMINI_* keys are absent,
+        # treat it as the master Gemini key so existing Render env setups still work.
+        if not self.GEMINI_API_KEY:
+            legacy_openai = os.getenv("OPENAI_API_KEY")
+            if legacy_openai:
+                self.GEMINI_API_KEY = legacy_openai
+                # Mirror into master fallback so rest of code sees it
+                os.environ["GEMINI_API_KEY"] = legacy_openai
+                try:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Using OPENAI_API_KEY value as GEMINI_API_KEY (backward compatibility). Set GEMINI_API_KEY explicitly to remove this warning."
+                    )
+                except Exception:
+                    pass
         self.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
         
         # Directory settings
@@ -55,7 +70,7 @@ class IngestionConfig:
         self.MAX_VISION_TOKENS = 500
         
         # Fallback: Single API key for all services if individual keys not provided
-        self.GEMINI_MASTER_API_KEY = os.getenv("GEMINI_API_KEY")  # Backward compatibility
+        self.GEMINI_MASTER_API_KEY = os.getenv("GEMINI_API_KEY")  # Backward compatibility (may have been populated above)
         
         # Table extraction settings (deployment-ready)
         self.TABLE_EXTRACTION_METHOD = "pdfplumber"  # Python-only, no system deps

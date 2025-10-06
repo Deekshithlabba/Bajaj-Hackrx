@@ -64,7 +64,18 @@ class VectorDatabasePipeline:
             auto_generate_index: Whether to auto-generate unique index name
         """
         # API Keys
-        self.gemini_api_key = config.GEMINI_API_KEY
+        # Earlier version strictly required GEMINI_API_KEY even if a dedicated
+        # GEMINI_EMBEDDING_API_KEY (or master fallback) was present. This caused
+        # deployment failures on Render when only the service‑specific key was set.
+        # We now accept (in priority order):
+        #   1. GEMINI_EMBEDDING_API_KEY
+        #   2. GEMINI_API_KEY (legacy / master)
+        #   3. GEMINI_MASTER_API_KEY (same as GEMINI_API_KEY in config but kept for clarity)
+        self.primary_embedding_key = (
+            config.GEMINI_EMBEDDING_API_KEY
+            or getattr(config, 'GEMINI_API_KEY', None)
+            or getattr(config, 'GEMINI_MASTER_API_KEY', None)
+        )
         self.pinecone_api_key = config.PINECONE_API_KEY
         
         # Auto-generate unique index name if needed
@@ -76,8 +87,10 @@ class VectorDatabasePipeline:
         else:
             self.index_name = config.PINECONE_INDEX_NAME
         
-        if not self.gemini_api_key:
-            raise ValueError("Gemini API key is required. Set GEMINI_API_KEY environment variable.")
+        if not self.primary_embedding_key:
+            raise ValueError(
+                "No Gemini embedding API key found. Set GEMINI_EMBEDDING_API_KEY or GEMINI_API_KEY environment variable."
+            )
         if not self.pinecone_api_key:
             raise ValueError("Pinecone API key is required. Set PINECONE_API_KEY environment variable.")
         
@@ -92,10 +105,13 @@ class VectorDatabasePipeline:
         
         # Pinecone index (initialized lazily)
         self._index = None
-        
-        logger.info(f"🚀 Vector Database Pipeline initialized")
-        logger.info(f"📊 Model: {self.embedding_model} ({self.embedding_dimension}D)")
+
+        # Initialization logging (now safely inside __init__)
+        masked_key_tail = self.primary_embedding_key[-6:] if self.primary_embedding_key else "missing"
+        logger.info("🚀 Vector Database Pipeline initialized")
+        logger.info(f"📊 Embedding Model: {self.embedding_model} ({self.embedding_dimension}D)")
         logger.info(f"🗂️ Index: {self.index_name}")
+        logger.info(f"🔑 Gemini embedding key detected (tail ..{masked_key_tail})")
     
     @property
     def index(self):
